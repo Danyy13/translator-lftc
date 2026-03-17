@@ -5,7 +5,7 @@
 
 void analizorLexical() {
     Token *tokenList = NULL;
-    Token *lastToken = NULL;
+    // Token *lastToken = NULL;
 
     char *fileContent = getFileContent("testfile.c");
 

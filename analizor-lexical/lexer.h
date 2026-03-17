@@ -24,7 +24,7 @@ typedef struct token{
 		int i;		// the value for INT
 		char c;		// the value for CHAR
 		double d;		// the value for DOUBLE
-	};
+	}value;
 
 	struct token *next;		// next token in a simple linked list
 }Token;
@@ -36,4 +36,4 @@ typedef struct tokenList {
 
 Token *addToken(AtomCode code);
 Token *tokenize(const char *pch);
-void showTokens(const Token *tokens);
+void showTokens(Token *tokens);
