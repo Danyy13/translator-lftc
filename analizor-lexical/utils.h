@@ -7,7 +7,7 @@
 
 // prints to stderr a message prefixed with "error: " and exit the program
 // the arguments are the same as for printf
-noreturn void err(const char *format, ...); // noreturn - spune ca functia nu returneaza ceva sau nu ajunge la finalul corpului functiei
+noreturn void printErrorAndExit(const char *format, ...); // noreturn - spune ca functia nu returneaza ceva sau nu ajunge la finalul corpului functiei
 
 // allocs memory using malloc
 // if succeeds, it returns the allocated memory, else it prints an error message and exit the program

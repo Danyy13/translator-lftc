@@ -35,4 +35,5 @@ typedef struct tokenList {
 }TokenList;
 
 Token *addToken(AtomCode code);
+Token *tokenize(const char *pch);
 void showTokens(const Token *tokens);
