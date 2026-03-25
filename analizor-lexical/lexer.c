@@ -68,6 +68,25 @@ AtomCode getKeywordAtomCode(const char *text) {
     return ID;
 }
 
+// '/a'
+
+char getSpecialCharacter(char specialCharacterLetter) {
+    switch(specialCharacterLetter) {
+        case 'a': return '\a';
+        case 'b': return '\b';
+        case 'f': return '\f';
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case 'v': return '\v';
+        case '\\': return '\\';
+        case '\'': return '\'';
+        case '\"': return '\"';
+        case '0': return '\0';
+        default: printErrorAndExit("The code should not reach this line. Please check special characters.");
+    }
+}
+
 Token *tokenize(const char *pch) {    
     for(;;) {
         switch(*pch) {
@@ -139,7 +158,15 @@ Token *tokenize(const char *pch) {
                 if(pch[1] == '/') {
                     // Handle comment
                     while(pch[0] != '\n') pch++;
+                    line++;
                     pch++;
+                } else if(pch[1] == '*') {
+                    // Handle multi-line comment
+                    while(!(pch[0] == '*' && pch[1] == '/')) {
+                        if(pch[0] == '\n') line++;
+                        pch++;
+                    }
+                    pch += 2; // Skip last the */ characters
                 } else {
                     addToken(DIV);
                     pch++;
@@ -208,12 +235,56 @@ Token *tokenize(const char *pch) {
                     
                     int value = atoi(start);
 
-                    // printf("value: %d\n", value);
                     token = addToken(INT);
                     token->value.i = value;
                 }
 
-                // Keywords
+                // Char Constant
+                if(*pch == '\'') {
+                    const char *start = pch++;
+                    char characterValue = 0;
+                    
+                    for(;*pch != '\'';pch++) {} // getting all characters in between ''
+                    pch++;
+
+                    if(start[1] == '\'' && start[2] == '\'') printErrorAndExit("Empty character constant");
+
+                    const char specialCharacters[] = "abfnrtv\\\'\"0";
+                    if(start[1] == '\\') {
+                        if(start[3] != '\'') printErrorAndExit("Multi-character literal exceeds char type");
+
+                        if(strchr(specialCharacters, start[2]) == NULL) printErrorAndExit("Only special characters can have \\ before them");
+                        else characterValue = getSpecialCharacter(start[2]);
+                    } else {
+                        if(start[2] != '\'') printErrorAndExit("Multi-character literal exceeds char type");
+                        characterValue = start[1];
+                    }
+
+                    token = addToken(CHAR);
+                    token->value.c = characterValue;
+                }
+                
+                // String Constant
+                if(*pch == '\"') {
+                    const char *start = ++pch;
+                    int stringLength = 0;
+
+                    for(;*pch != '\"';pch++) { // getting all characters in between ""
+                        if(*pch == '\0') printErrorAndExit("Missing terminating \" character. String declaration started at line %d", line);
+                    } 
+                    pch++;
+                    
+                    // Get string value
+                    stringLength = pch - start;
+                    char *string = safeMalloc(stringLength * sizeof(char));
+                    strncpy(string, start, stringLength - 1);
+                    string[stringLength - 1] = '\0';
+
+                    token = addToken(STRING);
+                    token->value.text = string; // Punem structura sa pointeze la string-ul alocat dinamic
+                }
+
+                // Keywords and ID
                 if(isalpha(*pch) || *pch == '_') {
                     const char *start = pch++;
                     for(;isalnum(*pch) || *pch == '_';pch++) {}
@@ -313,7 +384,7 @@ void printTokenValue(Token *token) {
 
 void showTokens(Token *tokenList) {
     for(Token *traverser=tokenList;traverser!=NULL;traverser=traverser->next) {
-        if(traverser->code == ID || traverser->code == INT) { // La ID printam si valoarea sa
+        if(traverser->code == ID || traverser->code == INT || traverser->code == CHAR || traverser->code == STRING) { // La ID printam si valoarea sa
             printf("%d\t%s: ", traverser->line, getAtomName(traverser->code));
             printTokenValue(traverser);
             putchar('\n');
