@@ -231,7 +231,12 @@ Token *tokenize(const char *pch) {
                 // Int Constant
                 if(isdigit(*pch)) {
                     const char *start = pch;
-                    for(;isdigit(*pch);pch++) {}
+                    for(;isdigit(*pch);pch++) {} // get first few digits
+
+                    const char doubleChars[] = ".eE";
+                    // if(strchr(doubleChars, *pch) == NULL) {
+                        
+                    // }
                     
                     int value = atoi(start);
 
