@@ -68,8 +68,6 @@ AtomCode getKeywordAtomCode(const char *text) {
     return ID;
 }
 
-// '/a'
-
 char getSpecialCharacter(char specialCharacterLetter) {
     switch(specialCharacterLetter) {
         case 'a': return '\a';
@@ -183,6 +181,7 @@ Token *tokenize(const char *pch) {
                 } else {
                     printErrorAndExit("Expected second '&' for AND atom");
                 }
+                break;
             case '|':
                 if(pch[1] == '|') {
                     addToken(OR);
@@ -190,6 +189,7 @@ Token *tokenize(const char *pch) {
                 } else {
                     printErrorAndExit("Expected second '|' for OR atom");
                 }
+                break;
             case '=':
                 if(pch[1] == '=') {
                     addToken(EQUAL);
@@ -230,18 +230,32 @@ Token *tokenize(const char *pch) {
 
                 // Int Constant
                 if(isdigit(*pch)) {
+                    int value = 0;
+                    int isDouble = 0;
                     const char *start = pch;
-                    for(;isdigit(*pch);pch++) {} // get first few digits
+                    const char doubleChars[] = ".eE-+";
 
-                    const char doubleChars[] = ".eE";
-                    // if(strchr(doubleChars, *pch) == NULL) {
-                        
-                    // }
+                    for(;isdigit(*pch);pch++) {
+                        if(strchr(doubleChars, *pch) != NULL) isDouble = 1;
+                    }
+
+                    char *valueText = extractText(start, pch);
+                    // printf("Value text: %s\n", valueText);
+
+                    // printf("pch after for: %s\n", pch);
                     
-                    int value = atoi(start);
+                    char *endptr = NULL;
+                    if(isDouble) {
+                        double value = strtod(valueText, &endptr);
+                        
+                        token = addToken(DOUBLE);
+                        token->value.c = value;
+                    } else {
+                        int value = strtol(valueText, &endptr, 10);
 
-                    token = addToken(INT);
-                    token->value.i = value;
+                        token = addToken(INT);
+                        token->value.c = value;
+                    }
                 }
 
                 // Char Constant
