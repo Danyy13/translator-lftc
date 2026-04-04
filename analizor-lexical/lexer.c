@@ -136,6 +136,43 @@ void validateDoubleConstant(char *text) {
     }
 }
 
+
+// Function that takes a string like "a\tb" and combines special characters to a single one in order to print string like "a    b"
+void combineSpecialCharaters(char *string) {
+    while(string[0] != '\0') {
+        if(string[0] == '\\' && string[1] != '\0') {
+            char specialChar = string[1]; // Character after '\'
+            int charChanged = 1; // Flag that unsets if the character sequence remains the same; in that case the resulting string doesn't shorten by 1 character, but it stays the same
+
+            switch (specialChar) {
+                case 'n': string[0] = '\n'; break;
+                case 't': string[0] = '\t'; break;
+                case 'r': string[0] = '\r'; break;
+                case 'v': string[0] = '\v'; break;
+                case 'b': string[0] = '\b'; break;
+                case 'f': string[0] = '\f'; break;
+                case 'a': string[0] = '\a'; break;
+                case '\\': string[0] = '\\'; break;
+                case '\"': string[0] = '\"'; break;
+                case '\'': string[0] = '\''; break;
+                case '0': string[0] = '\0'; break;
+                default:
+                    // If it's an unrecognized escape sequence, keep both characters (skip them)
+                    charChanged = 0;
+                    string += 2;
+                    break;
+            }
+
+            if(charChanged) {
+                strcpy(string + 1, string + 2); // Remove character 
+            }
+        }
+        
+        string++;
+    }
+}
+
+
 Token *tokenize(const char *pch) {
     for(;;) {
         // showTokens(tokenList);
@@ -356,6 +393,8 @@ Token *tokenize(const char *pch) {
                     char *string = safeMalloc(stringLength * sizeof(char));
                     strncpy(string, start, stringLength - 1);
                     string[stringLength - 1] = '\0';
+
+                    combineSpecialCharaters(string); // Makes sequences like '\t' print as character instead of two separate characters 
 
                     token = addToken(STRING);
                     token->value.text = string; // Punem structura sa pointeze la string-ul alocat dinamic
