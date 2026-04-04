@@ -85,7 +85,60 @@ char getSpecialCharacter(char specialCharacterLetter) {
     }
 }
 
-Token *tokenize(const char *pch) {    
+// Rule to follow: DOUBLE: [0-9]+ ( '.' [0-9]+ ( [eE] [+-]? [0-9]+ )? | ( '.' [0-9]+ )? [eE] [+-]? [0-9]+ )
+void validateDoubleConstant(char *text) {
+    // Pass all the first characters that are digits
+    while(isdigit(*text)) {
+        text++;
+    }
+
+    // Check '.' case
+    if(*text == '.') {
+        text++; // Pass the '.' char
+
+        int digitsAfterDot = 0;
+        while(isdigit(*text)) { // Pass all the digits 
+            text++;
+            digitsAfterDot++;
+        }
+
+        // If there are no digits after the dot, throw an error
+        if(digitsAfterDot == 0) {
+            printErrorAndExit("There must be one or more digits after the character '.'. Invalid character found: \'%c\'\n", *text);
+        }
+    }
+
+    // Check 'e' or 'E' case
+    if(*text == 'e' || *text == 'E') {
+        text++; // Pass the 'e' char
+
+        if(*text == '-' || *text == '+') {
+            text++; // Pass char
+        }
+
+        int digitsAfterDot = 0;
+        while(isdigit(*text)) { // Pass all the digits 
+            digitsAfterDot++;
+            text++;
+        }
+
+        if(digitsAfterDot == 0) {
+            printErrorAndExit("There must be at least one or more digits right after the \"e(+|-)\" sequence");
+        }
+    }
+
+    // printf("line: %d\tlast char: %c\n", line, *text);
+
+    // If there is a non-null character after checking '.' and 'e' then throw error
+    // Character belongs to ".eE+-" array but it should not be placed there for a good definition of the constant
+    if(*text != '\0') {
+        printErrorAndExit("Extra text after expected end of number. Invalid character \'%c\' after constant double declaration\n", *text);
+    }
+}
+
+Token *tokenize(const char *pch) {
+    showTokens(tokenList);
+    
     for(;;) {
         switch(*pch) {
             // END
@@ -235,27 +288,24 @@ Token *tokenize(const char *pch) {
                     const char *start = pch;
                     const char doubleChars[] = ".eE-+";
 
-                    for(;isdigit(*pch);pch++) {
+                    while(isdigit(*pch) || (strchr(doubleChars, *pch) != NULL)) { // if the char is a digit or it is in doubleChars
                         if(strchr(doubleChars, *pch) != NULL) isDouble = 1;
+                        pch++;
                     }
 
                     char *valueText = extractText(start, pch);
-                    // printf("Value text: %s\n", valueText);
 
-                    // printf("pch after for: %s\n", pch);
-                    
-                    char *endptr = NULL;
                     if(isDouble) {
-                        double value = strtod(valueText, &endptr);
-                        
+                        validateDoubleConstant(valueText); // Check if the Double Constant is correct. In the case of an error, the function calls exit() from within
+        
                         token = addToken(DOUBLE);
-                        token->value.c = value;
+                        token->value.doubleValue = strtod(valueText, NULL);
                     } else {
-                        int value = strtol(valueText, &endptr, 10);
-
                         token = addToken(INT);
-                        token->value.c = value;
+                        token->value.intValue = strtol(valueText, NULL, 10);
                     }
+                    
+                    // printf("INT or DOUBLE text: %s\n", valueText);
                 }
 
                 // Char Constant
@@ -280,7 +330,7 @@ Token *tokenize(const char *pch) {
                     }
 
                     token = addToken(CHAR);
-                    token->value.c = characterValue;
+                    token->value.charValue = characterValue;
                 }
                 
                 // String Constant
@@ -383,13 +433,13 @@ const char* getAtomName(AtomCode atomCode) {
 void printTokenValue(Token *token) {
     switch(token->code) {
         case CHAR:
-            putchar(token->value.c);
+            putchar(token->value.charValue);
             break;
         case INT:
-            printf("%d", token->value.i);
+            printf("%d", token->value.intValue);
             break;
         case DOUBLE:
-            printf("%lf", token->value.d);
+            printf("%.2lf", token->value.doubleValue);
             break;
         case ID:
         case STRING:
@@ -401,9 +451,39 @@ void printTokenValue(Token *token) {
     }
 }
 
+void printTokenValueToFile(FILE *outputFile, Token *token) {
+    switch(token->code) {
+        case CHAR:
+            fputc(token->value.charValue, outputFile);
+            break;
+        case INT:
+            fprintf(outputFile, "%d", token->value.intValue);
+            break;
+        case DOUBLE:
+            fprintf(outputFile, "%.2lf", token->value.doubleValue);
+            break;
+        case ID:
+        case STRING:
+            fprintf(outputFile, "%s", token->value.text);
+            break;
+        default:
+            printErrorAndExit("Trying to print the value for a non-printable atom: %s", getAtomName(token->code));
+            break;
+    }
+}
+
 void showTokens(Token *tokenList) {
+    AtomCode constantsAndIdCode[] = {ID, INT, CHAR, STRING, DOUBLE, -1}; // These tokens also print the value
+
     for(Token *traverser=tokenList;traverser!=NULL;traverser=traverser->next) {
-        if(traverser->code == ID || traverser->code == INT || traverser->code == CHAR || traverser->code == STRING) { // La ID printam si valoarea sa
+        int isConstantOrId = 0;
+        for(int i=0;constantsAndIdCode[i]!=-1;i++) { // While code in array is not the last one, keep iterating
+            if(constantsAndIdCode[i] == traverser->code) { // Check if the token has a constant or id code
+                isConstantOrId = 1;
+            }
+        }
+        
+        if(isConstantOrId) { // For Id and Constants we also print the value
             printf("%d\t%s: ", traverser->line, getAtomName(traverser->code));
             printTokenValue(traverser);
             putchar('\n');
@@ -411,4 +491,32 @@ void showTokens(Token *tokenList) {
             printf("%d\t%s\n", traverser->line, getAtomName(traverser->code));
         }
     }
+}
+
+void printTokensToFile(char *outputFilepath, Token *tokensList) {
+    FILE *outputFile = fopen(outputFilepath, "w");
+    if(!outputFile) {
+        printErrorAndExit("Error opening file %s\n", outputFilepath);
+    }
+
+    AtomCode constantsAndIdCode[] = {ID, INT, CHAR, STRING, DOUBLE, -1}; // These tokens also print the value
+
+    for(Token *traverser=tokenList;traverser!=NULL;traverser=traverser->next) {
+        int isConstantOrId = 0;
+        for(int i=0;constantsAndIdCode[i]!=-1;i++) { // While code in array is not the last one, keep iterating
+            if(constantsAndIdCode[i] == traverser->code) { // Check if the token has a constant or id code
+                isConstantOrId = 1;
+            }
+        }
+        
+        if(isConstantOrId) { // For Id and Constants we also print the value
+            fprintf(outputFile, "%d\t%s: ", traverser->line, getAtomName(traverser->code));
+            printTokenValueToFile(outputFile, traverser);
+            fputc('\n', outputFile);
+        } else {
+            fprintf(outputFile, "%d\t%s\n", traverser->line, getAtomName(traverser->code));
+        }
+    }
+
+    fclose(outputFile);
 }

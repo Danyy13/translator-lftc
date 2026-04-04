@@ -21,9 +21,9 @@ typedef struct token{
 	
     union Data {
 		char *text;		// the chars for ID, STRING (dynamically allocated)
-		int i;		// the value for INT
-		char c;		// the value for CHAR
-		double d;		// the value for DOUBLE
+		int intValue;		// the value for INT
+		char charValue;		// the value for CHAR
+		double doubleValue;		// the value for DOUBLE
 	}value;
 
 	struct token *next;		// next token in a simple linked list
@@ -37,3 +37,4 @@ typedef struct tokenList {
 Token *addToken(AtomCode code);
 Token *tokenize(const char *pch);
 void showTokens(Token *tokens);
+void printTokensToFile(char *outputFilepath, Token *tokensList);
