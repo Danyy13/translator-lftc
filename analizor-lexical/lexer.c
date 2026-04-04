@@ -346,7 +346,7 @@ Token *tokenize(const char *pch) {
                 }
 
                 // Char Constant
-                if(*pch == '\'') {
+                else if(*pch == '\'') {
                     const char *start = pch;
                     char characterValue = 0;
                     
@@ -374,7 +374,7 @@ Token *tokenize(const char *pch) {
                 }
                 
                 // String Constant
-                if(*pch == '\"') {
+                else if(*pch == '\"') {
                     const char *start = ++pch;
                     int stringLength = 0;
 
@@ -401,7 +401,7 @@ Token *tokenize(const char *pch) {
                 }
 
                 // Keywords and ID
-                if(isalpha(*pch) || *pch == '_') {
+                else if(isalpha(*pch) || *pch == '_') {
                     const char *start = pch++;
                     for(;isalnum(*pch) || *pch == '_';pch++) {}
                     char *text = extractText(start, pch);
@@ -418,6 +418,10 @@ Token *tokenize(const char *pch) {
                         default:
                             break;
                     }
+                }
+
+                else {
+                    printErrorAndExit("Unsupported character: %c\n", *pch);
                 }
                 break;
         }

@@ -60,7 +60,7 @@ void appendStringToBuffer(char *buffer, char *string) {
 
 void writeIntAndIds() {
     char ids[][MAX_ID_SIZE] = {"x", "Ok", "_ceva", "___", "sanki10", // Not errors
-        // "1bet", "..bine", "$$$", // Errors
+        "1bet", "..bine", "$$$", // Errors
         "" // End character - MANDATORY
     };
 

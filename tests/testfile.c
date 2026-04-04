@@ -4,6 +4,9 @@ int main(void) {
 	int _ceva = 1;
 	int ___ = 2;
 	int sanki10 = 3;
+	int 1bet = 4;
+	int ..bine = 5;
+	// int $$$ = 6;
 
 	double a = 0.0;
 	double b = 4.9;
@@ -38,14 +41,14 @@ int main(void) {
 	// char f[] = "trebuia sa zic "Ce mai faci?" dar nu am apucat";
 	char g[] = "String with an actual\nnewline";
 
-	// if(3.05 == 305.000e-2) {
-	// 	puts("ok");
-	// } else {
-	// 	putchar('a');
-	// }
+	if(3.05 == 305.000e-2) {
+		puts("ok");
+	} else {
+		putchar('a');
+	}
 
-	// // Manual Edge Cases
-	// char empty_str[] = "";
+	// Manual Edge Cases
+	char empty_str[] = "";
 	// char empty_char = '';
 	// char unclosed_str[] = "This string never ends;
 	// char unclosed_char = 'a;
