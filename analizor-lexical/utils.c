@@ -3,9 +3,12 @@
 #include <stdarg.h>
 
 #include "utils.h"
+#include "lexer.h"
+
+extern Token *lastToken;
 
 void printErrorAndExit(const char *format,  ...) {
-    fprintf(stderr, "Error: ");
+    fprintf(stderr, "Error at line %d: ", lastToken->line);
     
     va_list va;
     va_start(va, format);

@@ -137,9 +137,9 @@ void validateDoubleConstant(char *text) {
 }
 
 Token *tokenize(const char *pch) {
-    showTokens(tokenList);
-    
     for(;;) {
+        // showTokens(tokenList);
+
         switch(*pch) {
             // END
             case '\0':
@@ -310,25 +310,28 @@ Token *tokenize(const char *pch) {
 
                 // Char Constant
                 if(*pch == '\'') {
-                    const char *start = pch++;
+                    const char *start = pch;
                     char characterValue = 0;
                     
-                    for(;*pch != '\'';pch++) {} // getting all characters in between ''
-                    pch++;
+                    if(start[1] == '\'') printErrorAndExit("Empty character constant");
 
-                    if(start[1] == '\'' && start[2] == '\'') printErrorAndExit("Empty character constant");
-
+                    int charactersToSkip = 0;
                     const char specialCharacters[] = "abfnrtv\\\'\"0";
                     if(start[1] == '\\') {
                         if(start[3] != '\'') printErrorAndExit("Multi-character literal exceeds char type");
 
                         if(strchr(specialCharacters, start[2]) == NULL) printErrorAndExit("Only special characters can have \\ before them");
                         else characterValue = getSpecialCharacter(start[2]);
+
+                        charactersToSkip = 4;
                     } else {
                         if(start[2] != '\'') printErrorAndExit("Multi-character literal exceeds char type");
                         characterValue = start[1];
+
+                        charactersToSkip = 3;
                     }
 
+                    pch += charactersToSkip;
                     token = addToken(CHAR);
                     token->value.charValue = characterValue;
                 }
@@ -340,7 +343,12 @@ Token *tokenize(const char *pch) {
 
                     for(;*pch != '\"';pch++) { // getting all characters in between ""
                         if(*pch == '\0') printErrorAndExit("Missing terminating \" character. String declaration started at line %d", line);
-                    } 
+                        
+                        // Check for \"
+                        if(pch[0] == '\\' && pch[1] == '\"') {
+                            pch += 2; // Skip the \" portion
+                        }
+                    }
                     pch++;
                     
                     // Get string value
@@ -439,7 +447,7 @@ void printTokenValue(Token *token) {
             printf("%d", token->value.intValue);
             break;
         case DOUBLE:
-            printf("%.2lf", token->value.doubleValue);
+            printf("%#lf", token->value.doubleValue);
             break;
         case ID:
         case STRING:
