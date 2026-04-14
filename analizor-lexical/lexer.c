@@ -320,7 +320,6 @@ Token *tokenize(const char *pch) {
 
                 // Int Constant
                 if(isdigit(*pch)) {
-                    int value = 0;
                     int isDouble = 0;
                     const char *start = pch;
                     const char doubleChars[] = ".eE-+";
@@ -381,9 +380,9 @@ Token *tokenize(const char *pch) {
                     for(;*pch != '\"';pch++) { // getting all characters in between ""
                         if(*pch == '\0') printErrorAndExit("Missing terminating \" character. String declaration started at line %d", line);
                         
-                        // Check for \"
-                        if(pch[0] == '\\' && pch[1] == '\"') {
-                            pch += 2; // Skip the \" portion
+                        // Check for \" or '\\'
+                        if((pch[0] == '\\' && pch[1] == '\\') || (pch[0] == '\\' && pch[1] == '\"')) {
+                            pch++; // Skip the \" portion
                         }
                     }
                     pch++;
