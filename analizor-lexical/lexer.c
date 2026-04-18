@@ -510,7 +510,7 @@ void printTokenValueToFile(FILE *outputFile, Token *token) {
             fprintf(outputFile, "%d", token->value.intValue);
             break;
         case DOUBLE:
-            fprintf(outputFile, "%.2lf", token->value.doubleValue);
+            fprintf(outputFile, "%#lf", token->value.doubleValue);
             break;
         case ID:
         case STRING:
@@ -530,6 +530,7 @@ void showTokens(Token *tokenList) {
         for(int i=0;constantsAndIdCode[i]!=-1;i++) { // While code in array is not the last one, keep iterating
             if(constantsAndIdCode[i] == traverser->code) { // Check if the token has a constant or id code
                 isConstantOrId = 1;
+                break;
             }
         }
         
