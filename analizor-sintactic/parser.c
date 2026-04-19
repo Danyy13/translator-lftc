@@ -65,7 +65,55 @@ bool structDef() {
 
     if(consume(STRUCT)) {
         if(consume(ID)) {
-            
+            if(varDef()) {
+                if(consume(RACC)) {
+                    if(consume(SEMICOLON)) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
+bool fnParam() {
+    Token *start = iteratorToken;
+
+    if(typeBase()) {
+        if(consume(ID)) {
+            if(arrayDecl()) { // optional
+                return true;
+            }
+
+            return true;
+        }
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
+bool fnDef() {
+    Token *start = iteratorToken;
+
+    if(typeBase() || consume(VOID)) {
+        if(consume(ID)) {
+            if(consume(LPAR)) {
+                while(fnParam()) { // parameters are optional
+                    if(!consume(COMMA)) { // if last parameter then no comma
+                        break;
+                    }
+                }
+
+                if(consume(RPAR)) {
+                    if(stmCompound()) {
+                        return true;
+                    }
+                }
+            }
         }
     }
 
