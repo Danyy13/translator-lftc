@@ -65,11 +65,11 @@ bool structDef() {
 
     if(consume(STRUCT)) {
         if(consume(ID)) {
-            if(varDef()) {
-                if(consume(RACC)) {
-                    if(consume(SEMICOLON)) {
-                        return true;
-                    }
+            while(varDef()) { }
+            
+            if(consume(RACC)) {
+                if(consume(SEMICOLON)) {
+                    return true;
                 }
             }
         }
@@ -84,9 +84,7 @@ bool fnParam() {
 
     if(typeBase()) {
         if(consume(ID)) {
-            if(arrayDecl()) { // optional
-                return true;
-            }
+            if(arrayDecl()) { } // optional
 
             return true;
         }
@@ -118,6 +116,53 @@ bool fnDef() {
     }
 
     iteratorToken = start;
+    return false;
+}
+
+bool exprOrPrim() {
+    if(consume(OR)) {
+        if(exprAnd()) {
+            if(exprOrPrim()) {
+                return true;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool exprOr() {
+    // Recursivitate stanga
+    if(exprAnd()) {
+        if(exprOrPrim()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool exprAssign() {
+    if(exprUnary()) {
+        if(consume(ASSIGN)) {
+            if(exprAssign()) {
+                return true;
+            }
+        }
+    }
+
+    if(exprOr()) {
+        return true;
+    }
+
+    return false;
+}
+
+bool expr() {
+    if(exprAssign()) {
+        return true;
+    }
+
     return false;
 }
 
