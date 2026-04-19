@@ -38,3 +38,4 @@ Token *addToken(AtomCode code);
 Token *tokenize(const char *pch);
 void showTokens(Token *tokens);
 void printTokensToFile(char *outputFilepath, Token *tokensList);
+const char* getAtomName(AtomCode atomCode);

@@ -5,8 +5,37 @@
 
 #include "parser.h"
 
+#define DEBUG
+
 Token *iteratorToken; // the iterator in the tokens list
 Token *consumedToken; // the last consumed token
+
+// pre-declaration of functions that need it
+bool stm();
+bool expr();
+
+bool consume(int code) {
+#ifdef DEBUG
+    printf("consume(%s)", getAtomName(code));
+#endif
+
+    if(iteratorToken->code == code) {
+        consumedToken = iteratorToken;
+        iteratorToken = iteratorToken->next;
+    
+    #ifdef DEBUG
+        printf(" => consumed\n");
+    #endif
+
+        return true;
+    }
+
+#ifdef DEBUG
+    printf(" => found %s\n", getAtomName(iteratorToken->code));
+#endif
+
+    return false;
+}
 
 bool typeBase() {
     Token *start = iteratorToken; // only necessary for struct declaration
@@ -41,6 +70,10 @@ bool arrayDecl() {
 }
 
 bool varDef() {
+#ifdef DEBUG
+    printf("# varDef\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(typeBase()) {
@@ -71,6 +104,21 @@ bool structDef() {
                 if(consume(SEMICOLON)) {
                     return true;
                 }
+            }
+        }
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
+bool stmCompound() {
+    Token *start = iteratorToken;
+    
+    if(consume(LACC)) {
+        while(varDef() || stm()) {
+            if(consume(RPAR)) {
+                return true;
             }
         }
     }
@@ -123,21 +171,6 @@ bool stm() {
     if(expr()) {}
     if(consume(SEMICOLON)) {
         return true;
-    }
-
-    iteratorToken = start;
-    return false;
-}
-
-bool stmCompound() {
-    Token *start = iteratorToken;
-    
-    if(consume(LACC)) {
-        while(varDef() || stm()) {
-            if(consume(RPAR)) {
-                return true;
-            }
-        }
     }
 
     iteratorToken = start;
@@ -451,7 +484,7 @@ bool expr() {
 }
 
 void printTokenErrorAndExit(const char *fmt, ...) {
-    frprintf(stderr, "Error in line %d: ", iteratorToken->line);
+    fprintf(stderr, "Error in line %d: ", iteratorToken->line);
     
     va_list va;
     va_start(va, fmt);
@@ -461,16 +494,6 @@ void printTokenErrorAndExit(const char *fmt, ...) {
     fputc('\n', stderr);
 
     exit(EXIT_FAILURE);
-}
-
-bool consume(int code) {
-    if(iteratorToken->code == code) {
-        consumedToken = iteratorToken;
-        iteratorToken = iteratorToken->next;
-
-        return true;
-    }
-    return false;
 }
 
 bool unit() {
