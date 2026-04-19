@@ -9,12 +9,12 @@ Token *iteratorToken; // the iterator in the tokens list
 Token *consumedToken; // the last consumed token
 
 bool typeBase() {
+    Token *start = iteratorToken; // only necessary for struct declaration
+
     if(consume(TYPE_INT)) return true;
     if(consume(TYPE_DOUBLE)) return true;
     if(consume(TYPE_CHAR)) return true;
     
-    Token *start = iteratorToken; // only necessary for struct declaration
-
     if(consume(STRUCT)) {
         if(consume(ID)) {
             return true;
@@ -79,6 +79,71 @@ bool structDef() {
     return false;
 }
 
+bool stm() {
+    Token *start = iteratorToken;
+
+    if(stmCompound()) { return true; }
+
+    if(consume(IF)) {
+        if(consume(LPAR)) {
+            if(expr()) {
+                if(consume(RPAR)) {
+                    if(stm()) {
+                        if(consume(ELSE)) { // optional
+                            if(stm()) { }
+                        }
+
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    if(consume(WHILE)) {
+        if(consume(LPAR)) {
+            if(expr()) {
+                if(consume(RPAR)) {
+                    if(stm()) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    if(consume(RETURN)) {
+        if(expr()) { }
+        
+        if(consume(SEMICOLON)) {
+            return true;
+        }
+    }
+
+    if(expr()) {}
+    if(consume(SEMICOLON)) {
+        return true;
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
+bool stmCompound() {
+    Token *start = iteratorToken;
+    
+    if(consume(LACC)) {
+        while(varDef() || stm()) {
+            if(consume(RPAR)) {
+                return true;
+            }
+        }
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
 bool fnParam() {
     Token *start = iteratorToken;
 
@@ -119,6 +184,222 @@ bool fnDef() {
     return false;
 }
 
+bool exprPrimary() {
+    Token *start = iteratorToken;
+    
+    if(consume(ID)) {
+        if(consume(LPAR)) { // optional
+            while(expr()) {
+                if(!consume(COMMA)) {
+                    break;
+                }
+            }
+
+            if(consume(RPAR)) { }
+        }
+
+        return true;
+    }
+
+    if(consume(INT)) { return true; }
+    if(consume(DOUBLE)) { return true; }
+    if(consume(CHAR)) { return true; }
+    if(consume(STRING)) { return true; }
+
+    if(consume(LPAR)) {
+        if(expr()) {
+            if(consume(RPAR)) {
+                return true;
+            }
+        }
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
+bool exprPostfixPrim() {
+    if(consume(LBRACKET)) {
+        if(expr()) {
+            if(consume(RBRACKET)) {
+                if(exprPostfixPrim()) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    if(consume(DOT)) {
+        if(consume(ID)) {
+            if(exprPostfixPrim()) {
+                return true;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool exprPostfix() {
+    if(exprPrimary()) {
+        if(exprPostfixPrim()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool exprUnary() {
+    Token *start = iteratorToken;
+
+    if(consume(SUB) || consume(NOT)) {
+        if(exprUnary()) {
+            return true;
+        }
+    }
+
+    if(exprPostfix()) {
+        return true;
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
+bool exprCast() {
+    Token *start = iteratorToken;
+
+    if(consume(LPAR)) {
+        if(typeBase()) {
+            if(arrayDecl()) { }
+
+            if(consume(RPAR)) {
+                if(exprCast()) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    if(exprUnary()) {
+        return true;
+    }
+
+    iteratorToken = start;
+    return false;
+}
+
+bool exprMulPrim() {
+    if(consume(MUL) || consume(DIV)) {
+        if(exprCast()) {
+            if(exprMulPrim()) {
+                return true;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool exprMul() {
+    if(exprCast()) {
+        if(exprMulPrim()) {
+            return true;
+        }
+    }
+
+    return true;
+}
+
+bool exprAddPrim() {
+    if(consume(ADD) || consume(SUB)) {
+        if(exprMul()) {
+            if(exprAddPrim()) {
+                return true;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool exprAdd() {
+    if(exprMul()) {
+        if(exprAddPrim()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool exprRelPrim() {
+    if(consume(LESS) || consume(LESSEQ) || consume(GREATER) || consume(GREATEREQ)) {
+        if(exprAdd()) {
+            if(exprRelPrim()) {
+                return true;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool exprRel() {
+    if(exprAdd()) {
+        if(exprRelPrim()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool exprEqPrim() {
+    if(consume(EQUAL) || consume(NOTEQ)) {
+        if(exprRel()) {
+            if(exprEqPrim()) {
+                return true;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool exprEq() {
+    if(exprRel()) {
+        if(exprEqPrim()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool exprAndPrim() {
+    if(consume(AND)) {
+        if(exprEq()) {
+            if(exprAndPrim()) {
+                return true;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool exprAnd() {
+    if(exprEq()) {
+        if(exprAndPrim()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool exprOrPrim() {
     if(consume(OR)) {
         if(exprAnd()) {
@@ -143,6 +424,8 @@ bool exprOr() {
 }
 
 bool exprAssign() {
+    Token *start = iteratorToken;
+
     if(exprUnary()) {
         if(consume(ASSIGN)) {
             if(exprAssign()) {
@@ -155,6 +438,7 @@ bool exprAssign() {
         return true;
     }
 
+    iteratorToken = start;
     return false;
 }
 
