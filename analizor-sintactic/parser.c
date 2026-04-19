@@ -7,12 +7,27 @@
 
 #define DEBUG
 
+#define MISSING_SEMICOLON_MESSAGE "Expected ';'"
+
 Token *iteratorToken; // the iterator in the tokens list
 Token *consumedToken; // the last consumed token
 
 // pre-declaration of functions that need it
 bool stm();
 bool expr();
+
+void printTokenErrorAndExit(const char *fmt, ...) {
+    fprintf(stderr, "Error in line %d: ", iteratorToken->line);
+    
+    va_list va;
+    va_start(va, fmt);
+    vfprintf(stderr, fmt, va);
+    va_end(va);
+
+    fputc('\n', stderr);
+
+    exit(EXIT_FAILURE);
+}
 
 bool consume(int code) {
 #ifdef DEBUG
@@ -38,7 +53,11 @@ bool consume(int code) {
 }
 
 bool typeBase() {
-    Token *start = iteratorToken; // only necessary for struct declaration
+#ifdef DEBUG
+    printf("# typeBase\n");
+#endif
+
+    Token *start = iteratorToken; // necessary for struct declaration
 
     if(consume(TYPE_INT)) return true;
     if(consume(TYPE_DOUBLE)) return true;
@@ -48,6 +67,7 @@ bool typeBase() {
         if(consume(ID)) {
             return true;
         }
+        printTokenErrorAndExit("Missing struct name after struct");
     }
 
     iteratorToken = start;
@@ -63,6 +83,7 @@ bool arrayDecl() {
         if(consume(RBRACKET)) {
             return true;
         }
+        printTokenErrorAndExit("Missing ']'");
     }
 
     iteratorToken = start;
@@ -83,10 +104,9 @@ bool varDef() {
             if(consume(SEMICOLON)) {
                 return true;
             }
-
-            // no semicolon error
+            printTokenErrorAndExit(MISSING_SEMICOLON_MESSAGE);
         }
-        // no ID error
+        printTokenErrorAndExit("Missing variable name after type name");
     }
 
     iteratorToken = start;
@@ -94,18 +114,29 @@ bool varDef() {
 }
 
 bool structDef() {
+#ifdef DEBUG
+    printf("# StructDef\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(consume(STRUCT)) {
         if(consume(ID)) {
-            while(varDef()) { }
+            if(consume(LACC)) {
+                while(varDef()) { }
             
-            if(consume(RACC)) {
-                if(consume(SEMICOLON)) {
-                    return true;
+                if(consume(RACC)) {
+                    if(consume(SEMICOLON)) {
+                        return true;
+                    }
+                    printTokenErrorAndExit(MISSING_SEMICOLON_MESSAGE);
                 }
+                printTokenErrorAndExit("Missing '}'");
             }
+            iteratorToken = start;
+            return false; // could be variable declaration
         }
+        printTokenErrorAndExit("Missing struct name after struct");
     }
 
     iteratorToken = start;
@@ -113,14 +144,19 @@ bool structDef() {
 }
 
 bool stmCompound() {
+#ifdef DEBUG
+    printf("# stmCompound\n");
+#endif
+
     Token *start = iteratorToken;
     
     if(consume(LACC)) {
-        while(varDef() || stm()) {
-            if(consume(RPAR)) {
-                return true;
-            }
+        while(varDef() || stm()) { }
+
+        if(consume(RACC)) {
+            return true;
         }
+        // printTokenErrorAndExit("Missing '}'");
     }
 
     iteratorToken = start;
@@ -128,6 +164,10 @@ bool stmCompound() {
 }
 
 bool stm() {
+#ifdef DEBUG
+    printf("# stm\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(stmCompound()) { return true; }
@@ -144,8 +184,10 @@ bool stm() {
                         return true;
                     }
                 }
+                printTokenErrorAndExit("Missing ')'");
             }
         }
+        printTokenErrorAndExit("Missing '('");
     }
 
     if(consume(WHILE)) {
@@ -156,8 +198,10 @@ bool stm() {
                         return true;
                     }
                 }
+                printTokenErrorAndExit("Missing ')'");
             }
         }
+        printTokenErrorAndExit("Missing '('");
     }
 
     if(consume(RETURN)) {
@@ -166,6 +210,7 @@ bool stm() {
         if(consume(SEMICOLON)) {
             return true;
         }
+        printTokenErrorAndExit(MISSING_SEMICOLON_MESSAGE);
     }
 
     if(expr()) {}
@@ -173,11 +218,19 @@ bool stm() {
         return true;
     }
 
+#ifdef DEBUG
+    printf("# stm ended with false\n");
+#endif
+
     iteratorToken = start;
     return false;
 }
 
 bool fnParam() {
+#ifdef DEBUG
+    printf("# fnParam\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(typeBase()) {
@@ -186,6 +239,7 @@ bool fnParam() {
 
             return true;
         }
+        printTokenErrorAndExit("Missing name after type declaration");
     }
 
     iteratorToken = start;
@@ -193,6 +247,10 @@ bool fnParam() {
 }
 
 bool fnDef() {
+#ifdef DEBUG
+    printf("# fnDef\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(typeBase() || consume(VOID)) {
@@ -209,8 +267,13 @@ bool fnDef() {
                         return true;
                     }
                 }
+                printTokenErrorAndExit("Missing ')'");
             }
+
+            iteratorToken = start;
+            return false; // could be a variable or struct, so don't throw error
         }
+        printTokenErrorAndExit("Missing function name");
     }
 
     iteratorToken = start;
@@ -476,24 +539,14 @@ bool exprAssign() {
 }
 
 bool expr() {
+    Token *start = iteratorToken;
+
     if(exprAssign()) {
         return true;
     }
 
+    iteratorToken = start;
     return false;
-}
-
-void printTokenErrorAndExit(const char *fmt, ...) {
-    fprintf(stderr, "Error in line %d: ", iteratorToken->line);
-    
-    va_list va;
-    va_start(va, fmt);
-    vfprintf(stderr, fmt, va);
-    va_end(va);
-
-    fputc('\n', stderr);
-
-    exit(EXIT_FAILURE);
 }
 
 bool unit() {

@@ -6,12 +6,16 @@
 
 #define LEXER_OUTPUT_FILEPATH "lexer_out.txt"
 
-void analizorLexical(Token *tokenList, char *testFilePath) {
+Token *analizorLexical(char *testFilePath) {
+    Token *tokenList = NULL;
+
     char *fileContent = getFileContent(testFilePath);
 
     tokenList = tokenize(fileContent);
 
     printTokensToFile(LEXER_OUTPUT_FILEPATH, tokenList);
+
+    return tokenList;
 }
 
 void analizorSintactic(Token *tokenList) {
@@ -20,9 +24,8 @@ void analizorSintactic(Token *tokenList) {
 
 int main(int argc, char *argv[]) {
     char *testFilePath = argv[1];
-    Token *tokenList = NULL;
 
-    analizorLexical(tokenList, testFilePath);
+    Token *tokenList = analizorLexical(testFilePath);
     analizorSintactic(tokenList);
 
     return 0;

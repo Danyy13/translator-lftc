@@ -176,6 +176,7 @@ void combineSpecialCharaters(char *string) {
 Token *tokenize(const char *pch) {
     for(;;) {
         // showTokens(tokenList);
+        // printf("Last token: %s", getAtomName(lastToken->code));
 
         switch(*pch) {
             // END
@@ -297,6 +298,7 @@ Token *tokenize(const char *pch) {
                     addToken(NOT);
                     pch++;
                 }
+                break;
             case '<':
                 if(pch[1] == '=') {
                     addToken(LESSEQ);
@@ -305,6 +307,7 @@ Token *tokenize(const char *pch) {
                     addToken(LESS);
                     pch++;
                 }
+                break;
             case '>':
                 if(pch[1] == '=') {
                     addToken(GREATEREQ);
@@ -313,6 +316,7 @@ Token *tokenize(const char *pch) {
                     addToken(GREATER);
                     pch++;
                 }
+                break;
 
             // Default
             default:
