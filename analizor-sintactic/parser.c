@@ -8,6 +8,8 @@
 #define DEBUG
 
 #define MISSING_SEMICOLON_MESSAGE "Expected ';'"
+#define MISSING_RACC_MESSAGE "Expected '}'"
+#define MISSING_LACC_MESSAGE "Expected '{'"
 
 Token *iteratorToken; // the iterator in the tokens list
 Token *consumedToken; // the last consumed token
@@ -46,7 +48,7 @@ bool consume(int code) {
     }
 
 #ifdef DEBUG
-    printf(" => found %s\n", getAtomName(iteratorToken->code));
+    printf(" => found %s from line %d\n", getAtomName(iteratorToken->code), iteratorToken->line);
 #endif
 
     return false;
@@ -67,7 +69,6 @@ bool typeBase() {
         if(consume(ID)) {
             return true;
         }
-        printTokenErrorAndExit("Missing struct name after struct");
     }
 
     iteratorToken = start;
@@ -75,6 +76,10 @@ bool typeBase() {
 }
 
 bool arrayDecl() {
+#ifdef DEBUG
+    printf("# arrayDecl\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(consume(LBRACKET)) {
@@ -83,7 +88,7 @@ bool arrayDecl() {
         if(consume(RBRACKET)) {
             return true;
         }
-        printTokenErrorAndExit("Missing ']'");
+        printTokenErrorAndExit("Expected ']' after array declaration");
     }
 
     iteratorToken = start;
@@ -106,7 +111,6 @@ bool varDef() {
             }
             printTokenErrorAndExit(MISSING_SEMICOLON_MESSAGE);
         }
-        printTokenErrorAndExit("Missing variable name after type name");
     }
 
     iteratorToken = start;
@@ -131,12 +135,11 @@ bool structDef() {
                     }
                     printTokenErrorAndExit(MISSING_SEMICOLON_MESSAGE);
                 }
-                printTokenErrorAndExit("Missing '}'");
+                printTokenErrorAndExit(MISSING_RACC_MESSAGE);
             }
             iteratorToken = start;
             return false; // could be variable declaration
         }
-        printTokenErrorAndExit("Missing struct name after struct");
     }
 
     iteratorToken = start;
@@ -149,14 +152,17 @@ bool stmCompound() {
 #endif
 
     Token *start = iteratorToken;
-    
+
     if(consume(LACC)) {
         while(varDef() || stm()) { }
 
         if(consume(RACC)) {
+        #ifdef DEBUG
+            printf("# finished stmCompound as true\n");
+        #endif
             return true;
         }
-        // printTokenErrorAndExit("Missing '}'");
+        printTokenErrorAndExit(MISSING_RACC_MESSAGE);
     }
 
     iteratorToken = start;
@@ -239,7 +245,7 @@ bool fnParam() {
 
             return true;
         }
-        printTokenErrorAndExit("Missing name after type declaration");
+        printTokenErrorAndExit("Missing parameter name");
     }
 
     iteratorToken = start;
@@ -257,9 +263,8 @@ bool fnDef() {
         if(consume(ID)) {
             if(consume(LPAR)) {
                 while(fnParam()) { // parameters are optional
-                    if(!consume(COMMA)) { // if last parameter then no comma
-                        break;
-                    }
+                    consume(COMMA); 
+                    
                 }
 
                 if(consume(RPAR)) {
@@ -273,7 +278,6 @@ bool fnDef() {
             iteratorToken = start;
             return false; // could be a variable or struct, so don't throw error
         }
-        printTokenErrorAndExit("Missing function name");
     }
 
     iteratorToken = start;
@@ -281,6 +285,9 @@ bool fnDef() {
 }
 
 bool exprPrimary() {
+#ifdef DEBUG
+    printf("# exprPrimary\n");
+#endif
     Token *start = iteratorToken;
     
     if(consume(ID)) {
@@ -292,6 +299,7 @@ bool exprPrimary() {
             }
 
             if(consume(RPAR)) { }
+            else printTokenErrorAndExit("Missing ')'");
         }
 
         return true;
@@ -307,7 +315,9 @@ bool exprPrimary() {
             if(consume(RPAR)) {
                 return true;
             }
+            printTokenErrorAndExit("Missing ')'");
         }
+        iteratorToken = start;
     }
 
     iteratorToken = start;
@@ -315,13 +325,17 @@ bool exprPrimary() {
 }
 
 bool exprPostfixPrim() {
+#ifdef DEBUG
+    printf("# exprPostfixPrim\n");
+#endif
+
     if(consume(LBRACKET)) {
         if(expr()) {
             if(consume(RBRACKET)) {
                 if(exprPostfixPrim()) {
                     return true;
                 }
-            }
+            } else printTokenErrorAndExit("Missing '}'");
         }
     }
 
@@ -330,29 +344,41 @@ bool exprPostfixPrim() {
             if(exprPostfixPrim()) {
                 return true;
             }
-        }
+        } else printTokenErrorAndExit("Missing name");
     }
 
     return true;
 }
 
 bool exprPostfix() {
+#ifdef DEBUG
+    printf("# exprPostfix\n");
+#endif
+
+    Token *start = iteratorToken;
+
     if(exprPrimary()) {
         if(exprPostfixPrim()) {
             return true;
         }
     }
 
+    iteratorToken = start;
     return false;
 }
 
 bool exprUnary() {
+#ifdef DEBUG
+    printf("# exprUnary\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(consume(SUB) || consume(NOT)) {
         if(exprUnary()) {
             return true;
         }
+        iteratorToken = start;
     }
 
     if(exprPostfix()) {
@@ -364,6 +390,10 @@ bool exprUnary() {
 }
 
 bool exprCast() {
+#ifdef DEBUG
+    printf("# exprCast\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(consume(LPAR)) {
@@ -375,7 +405,9 @@ bool exprCast() {
                     return true;
                 }
             }
+            printTokenErrorAndExit("Missing ')'");
         }
+        iteratorToken = start;
     }
 
     if(exprUnary()) {
@@ -387,6 +419,10 @@ bool exprCast() {
 }
 
 bool exprMulPrim() {
+#ifdef DEBUG
+    printf("# exprMulPrim\n");
+#endif
+
     if(consume(MUL) || consume(DIV)) {
         if(exprCast()) {
             if(exprMulPrim()) {
@@ -399,16 +435,27 @@ bool exprMulPrim() {
 }
 
 bool exprMul() {
+#ifdef DEBUG
+    printf("# exprMul\n");
+#endif
+
+    Token *start = iteratorToken;
+
     if(exprCast()) {
         if(exprMulPrim()) {
             return true;
         }
     }
 
+    iteratorToken = start;
     return true;
 }
 
 bool exprAddPrim() {
+#ifdef DEBUG
+    printf("# exprAddPrim\n");
+#endif
+
     if(consume(ADD) || consume(SUB)) {
         if(exprMul()) {
             if(exprAddPrim()) {
@@ -421,16 +468,27 @@ bool exprAddPrim() {
 }
 
 bool exprAdd() {
+#ifdef DEBUG
+    printf("# exprAdd\n");
+#endif
+
+    Token *start = iteratorToken;
+
     if(exprMul()) {
         if(exprAddPrim()) {
             return true;
         }
     }
 
+    iteratorToken = start;
     return false;
 }
 
 bool exprRelPrim() {
+#ifdef DEBUG
+    printf("# exprRelPrim\n");
+#endif
+
     if(consume(LESS) || consume(LESSEQ) || consume(GREATER) || consume(GREATEREQ)) {
         if(exprAdd()) {
             if(exprRelPrim()) {
@@ -443,16 +501,27 @@ bool exprRelPrim() {
 }
 
 bool exprRel() {
+#ifdef DEBUG
+    printf("# exprRel\n");
+#endif
+
+    Token *start = iteratorToken;
+
     if(exprAdd()) {
         if(exprRelPrim()) {
             return true;
         }
     }
 
+    iteratorToken = start;
     return false;
 }
 
 bool exprEqPrim() {
+#ifdef DEBUG
+    printf("# exprEqPrim\n");
+#endif
+
     if(consume(EQUAL) || consume(NOTEQ)) {
         if(exprRel()) {
             if(exprEqPrim()) {
@@ -465,16 +534,27 @@ bool exprEqPrim() {
 }
 
 bool exprEq() {
+#ifdef DEBUG
+    printf("# exprEq\n");
+#endif
+
+    Token *start = iteratorToken;
+
     if(exprRel()) {
         if(exprEqPrim()) {
             return true;
         }
     }
 
+    iteratorToken = start;
     return false;
 }
 
 bool exprAndPrim() {
+#ifdef DEBUG
+    printf("# exprAndPrim\n");
+#endif
+
     if(consume(AND)) {
         if(exprEq()) {
             if(exprAndPrim()) {
@@ -487,16 +567,27 @@ bool exprAndPrim() {
 }
 
 bool exprAnd() {
+#ifdef DEBUG
+    printf("# exprAnd\n");
+#endif
+
+    Token *start = iteratorToken;
+
     if(exprEq()) {
         if(exprAndPrim()) {
             return true;
         }
     }
 
+    iteratorToken = start;
     return false;
 }
 
 bool exprOrPrim() {
+#ifdef DEBUG
+    printf("# exprOrPrim\n");
+#endif
+
     if(consume(OR)) {
         if(exprAnd()) {
             if(exprOrPrim()) {
@@ -509,6 +600,12 @@ bool exprOrPrim() {
 }
 
 bool exprOr() {
+#ifdef DEBUG
+    printf("# exprOr\n");
+#endif
+
+    Token *start = iteratorToken;
+
     // Recursivitate stanga
     if(exprAnd()) {
         if(exprOrPrim()) {
@@ -516,10 +613,15 @@ bool exprOr() {
         }
     }
 
+    iteratorToken = start;
     return false;
 }
 
 bool exprAssign() {
+#ifdef DEBUG
+    printf("# exprAssign\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(exprUnary()) {
@@ -528,6 +630,7 @@ bool exprAssign() {
                 return true;
             }
         }
+        iteratorToken = start;
     }
 
     if(exprOr()) {
@@ -539,6 +642,10 @@ bool exprAssign() {
 }
 
 bool expr() {
+#ifdef DEBUG
+    printf("# expr\n");
+#endif
+
     Token *start = iteratorToken;
 
     if(exprAssign()) {
