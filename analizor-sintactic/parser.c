@@ -299,7 +299,9 @@ bool exprPrimary() {
             }
 
             if(consume(RPAR)) { }
-            else printTokenErrorAndExit("Missing ')'");
+            else {
+                iteratorToken = start;
+            }
         }
 
         return true;
