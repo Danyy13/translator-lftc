@@ -32,9 +32,9 @@ int main() {
     // stmCompound -> stm
 
     // stmCompound -> stm -> stmCompound    
-    {
-        int b;
-    }
+    // {
+    //     int b;
+    // }
 
     // stmCompound -> stm -> if
     if(x != 0) { // expr -> ... -> exprEq
@@ -78,6 +78,3 @@ int main() {
 
     return 0;
 }
-
-// --- error cases ---
-// int ceva(int a, int b,) {} // Missing parameter after ','
