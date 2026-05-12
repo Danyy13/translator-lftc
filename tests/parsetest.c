@@ -65,7 +65,7 @@ int main() {
         b = b / a;
     }
 
-    a = (double)d; 
+    a = (double)d;
     // cast nu merge pentru ca intra pe exprPrimary inainte de exprCast,
     // apoi consuma LPAR dar nu da niciodata "eroare" => iteratorul nu se
     // mai intoarce niciodata inainte de LPAR

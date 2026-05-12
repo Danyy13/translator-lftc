@@ -147,8 +147,6 @@ bool stmCompound() {
     printf("# stmCompound\n");
 #endif
 
-    
-
     if(consume(LACC)) {
         while(varDef() || stm()) { }
 
@@ -161,16 +159,13 @@ bool stmCompound() {
         // printTokenErrorAndExit("Missing '}' at the end of statement");
     }
 
-    
     return false;
 }
 
 bool stm() {
 #ifdef DEBUG
     printf("# stm\n");
-#endif
-
-    
+#endif    
 
     if(stmCompound()) { return true; }
 
@@ -185,10 +180,14 @@ bool stm() {
                             }
                             printTokenErrorAndExit("Invalid or missing expression after else keyword");
                         }
+
+                        return true;
                     }
-                } else printTokenErrorAndExit("Missing ')' after if condition");
+                }
+                printTokenErrorAndExit("Missing ')' after if condition");
             }
-        } else printTokenErrorAndExit("Missing '(' after if keyword");
+        }
+        printTokenErrorAndExit("Missing '(' after if keyword");
     }
 
     if(consume(WHILE)) {
@@ -223,7 +222,6 @@ bool stm() {
 #ifdef DEBUG
     printf("# stm ended with false\n");
 #endif
-
     
     return false;
 }
@@ -317,7 +315,7 @@ bool exprPrimary() {
             }
             printTokenErrorAndExit("Missing ')'");
         }
-        printTokenErrorAndExit("Invalid or missing expression after '('");
+        // Can't check for errors as cast also begins with LPAR so we are not in a point of no return
     }
 
     
