@@ -469,7 +469,7 @@ bool exprMul() {
     }
 
     
-    return true;
+    return false;
 }
 
 bool exprAddPrim() {
@@ -703,6 +703,8 @@ bool exprAssign() {
             printTokenErrorAndExit("Invalid or missing expression after '='");
         }
     }
+
+    iteratorToken = start;
 
     if(exprOr()) {
         return true;
