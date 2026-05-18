@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "utils.h"
+#include "../analizor-lexical/utils.h"
 #include "domain.h"
 
 Domain *symbolTable = NULL;
@@ -39,7 +39,7 @@ void freeSymbols(Symbol *list){
 }
 
 Symbol *newSymbol(const char *name, SymbolKind symbolKind){
-	Symbol *symbol = (Symbol*)safeAlloc(sizeof(Symbol));
+	Symbol *symbol = (Symbol*)safeMalloc(sizeof(Symbol));
 	
     // sets all the fields to 0/NULL
 	memset(symbol, 0, sizeof(Symbol));
@@ -49,8 +49,8 @@ Symbol *newSymbol(const char *name, SymbolKind symbolKind){
     return symbol;
 }
 
-Symbol *duplicateSymbol(Symbol *symbol){
-	Symbol *s=(Symbol*)safeAlloc(sizeof(Symbol));
+Symbol *dupSymbol(Symbol *symbol){
+	Symbol *s=(Symbol*)safeMalloc(sizeof(Symbol));
 	
     *s=*symbol;
 	s->next=NULL;
@@ -72,7 +72,7 @@ Symbol *addSymbolToList(Symbol **list, Symbol *symbol){
 	return symbol;
 }
 
-int symbolsLength(Symbol *list){
+int symbolsLen(Symbol *list){
 	int n=0;
 	for(;list;list=list->next) n++;
 	return n;
@@ -90,13 +90,15 @@ void freeSymbol(Symbol *symbol){
 		case SK_STRUCT:
 			freeSymbols(symbol->structMembers);
 			break;
+		case SK_PARAM:
+			break;
 	}
 	
     free(symbol);
 }
 
 Domain *pushDomain(){
-	Domain *domain = (Domain*)safeAlloc(sizeof(Domain));
+	Domain *domain = (Domain*)safeMalloc(sizeof(Domain));
 	
     domain->symbols = NULL;
 	domain->parent = symbolTable;

@@ -4,8 +4,10 @@
 #include <stdbool.h>
 
 #include "parser.h"
+#include "../analizor-domeniu/domain.h"
+#include "../analizor-lexical/utils.h"
 
-#define DEBUG
+// #define DEBUG
 
 #define MISSING_SEMICOLON_MESSAGE "Expected ';'"
 #define MISSING_RACC_MESSAGE "Expected '}'"
@@ -13,6 +15,8 @@
 
 Token *iteratorToken; // the iterator in the tokens list
 Token *consumedToken; // the last consumed token
+
+Symbol *owner = NULL;
 
 // pre-declaration of functions that need it
 bool stm();
@@ -54,17 +58,35 @@ bool consume(int code) {
     return false;
 }
 
-bool typeBase() {
+bool typeBase(Type *type) {
 #ifdef DEBUG
     printf("# typeBase\n");
 #endif
 
-    if(consume(TYPE_INT)) return true;
-    if(consume(TYPE_DOUBLE)) return true;
-    if(consume(TYPE_CHAR)) return true;
+    if(consume(TYPE_INT)) {
+        type->typeBase = TB_INT;   
+        return true;
+    }
+    if(consume(TYPE_DOUBLE)) {
+        type->typeBase = TB_DOUBLE;   
+        return true;
+    }
+    if(consume(TYPE_CHAR)) {
+        type->typeBase = TB_CHAR;   
+        return true;
+    }
     
     if(consume(STRUCT)) {
         if(consume(ID)) {
+            Token *tokenName = consumedToken;
+
+            type->typeBase = TB_STRUCT;
+            type->symbol = findSymbol(tokenName->value.text);
+
+            if(!type->symbol) {
+                printTokenErrorAndExit("Structura nedefinita: %s", tokenName->value.text);
+            }
+
             return true;
         }
     }
@@ -72,22 +94,24 @@ bool typeBase() {
     return false;
 }
 
-bool arrayDecl() {
+bool arrayDecl(Type *type) {
 #ifdef DEBUG
     printf("# arrayDecl\n");
 #endif
 
-    
-
     if(consume(LBRACKET)) {
-        if(consume(INT)) { } // optional INT
+        if(consume(INT)) { // optional INT
+            Token *tokenSize = consumedToken;
+            type->arraySize = tokenSize->value.intValue;
+        } else {
+            type->arraySize = 0;
+        }
 
         if(consume(RBRACKET)) {
             return true;
         }
         printTokenErrorAndExit("Expected ']' after array declaration");
     }
-
     
     return false;
 }
@@ -97,13 +121,52 @@ bool varDef() {
     printf("# varDef\n");
 #endif
 
-    
+    Type type;
 
-    if(typeBase()) {
+    if(typeBase(&type)) {
         if(consume(ID)) {
-            if(arrayDecl()) { }
+            Token *tokenName = consumedToken;
+
+            if(arrayDecl(&type)) {
+                if(type.arraySize == 0) printTokenErrorAndExit("A vector variable must have a specified dimension");
+            } else {
+                type.arraySize = -1; // daca array da fail, arraySize era garbage value
+            }
 
             if(consume(SEMICOLON)) {
+                Symbol *var = findSymbolInDomain(symbolTable, tokenName->value.text);
+                if(var) {
+                    printTokenErrorAndExit("Symbol redefinition %s", tokenName->value.text);
+                }
+                var = newSymbol(tokenName->value.text, SK_VAR);
+                var->type = type;
+                var->owner = owner;
+                addSymbolToDomain(symbolTable, var);
+
+                if(owner) {
+                    switch(owner->symbolKind) {
+                        case SK_FN:
+                            var->varIndex = symbolsLen(owner->function.locals);
+                            addSymbolToList(&owner->function.locals, dupSymbol(var));
+                            break;
+                        case SK_STRUCT:
+                            var->varIndex = typeSize(&owner->type);
+                            addSymbolToList(&owner->structMembers, dupSymbol(var));
+                            break;
+                        case SK_VAR:
+                        case SK_PARAM:
+                            break;
+                    }
+                } else {
+                    // printf("Type\tarraySize: %d\tsymbol", type.arraySize);
+                    // showSymbol(type.symbol);
+                    // printf("\ttypeBase: ");
+                    // showNamedType(&type, "ok");
+                    // printf("\tsize: %d\n", typeSize(&type));
+                    
+                    var->varMem = safeMalloc(typeSize(&type));
+                }
+
                 return true;
             }
             printTokenErrorAndExit("Missing ';' after variable declaration");
@@ -111,7 +174,6 @@ bool varDef() {
         printTokenErrorAndExit("Missing or invalid variable name or function identifier");
     }
 
-    
     return false;
 }
 
@@ -124,11 +186,28 @@ bool structDef() {
 
     if(consume(STRUCT)) {
         if(consume(ID)) {
+            Token *tokenName = consumedToken;
+
             if(consume(LACC)) {
+                Symbol *symbol = findSymbolInDomain(symbolTable, tokenName->value.text);
+                if(symbol) {
+                    printTokenErrorAndExit("Symbol redefinition: %s", tokenName->value.text);
+                }
+                symbol = addSymbolToDomain(symbolTable, newSymbol(tokenName->value.text, SK_STRUCT));
+                symbol->type.typeBase = TB_STRUCT;
+                symbol->type.symbol = symbol;
+                symbol->type.arraySize = -1;
+
+                pushDomain();
+                owner = symbol;
+
                 while(varDef()) { }
             
                 if(consume(RACC)) {
                     if(consume(SEMICOLON)) {
+                        owner = NULL;
+                        dropDomain();
+
                         return true;
                     }
                     printTokenErrorAndExit("Missing ';' after struct declaration");
@@ -142,18 +221,25 @@ bool structDef() {
     return false;
 }
 
-bool stmCompound() {
+bool stmCompound(bool newDomain) {
 #ifdef DEBUG
     printf("# stmCompound\n");
 #endif
 
     if(consume(LACC)) {
+        if(newDomain) pushDomain();
+
         while(varDef() || stm()) { }
 
         if(consume(RACC)) {
         #ifdef DEBUG
             printf("# finished stmCompound as true\n");
         #endif
+
+            if(newDomain) {
+                dropDomain();
+            }
+
             return true;
         }
         // printTokenErrorAndExit("Missing '}' at the end of statement");
@@ -167,7 +253,7 @@ bool stm() {
     printf("# stm\n");
 #endif    
 
-    if(stmCompound()) { return true; }
+    if(stmCompound(true)) { return true; }
 
     if(consume(IF)) {
         if(consume(LPAR)) {
@@ -231,17 +317,34 @@ bool fnParam() {
     printf("# fnParam\n");
 #endif
 
-    
+    Type type;
+    type.arraySize = -1;
 
-    if(typeBase()) {
+    if(typeBase(&type)) {
         if(consume(ID)) {
-            if(arrayDecl()) { } // optional
+            Token *tokenName = consumedToken;
+
+            if(arrayDecl(&type)) {
+                type.arraySize = 0;
+            }
+
+            Symbol *parameter = findSymbolInDomain(symbolTable, tokenName->value.text);
+            if(parameter) {
+                printTokenErrorAndExit("Symbol redefinition: %s", tokenName->value.text);
+            }
+
+            parameter = newSymbol(tokenName->value.text, SK_PARAM);
+            parameter->type = type;
+            parameter->owner = owner;
+            parameter->paramIndex = symbolsLen(owner->function.params);
+            addSymbolToDomain(symbolTable, parameter);
+
+            addSymbolToList(&owner->function.params, dupSymbol(parameter));
 
             return true;
         }
         printTokenErrorAndExit("Missing parameter name");
     }
-
     
     return false;
 }
@@ -252,10 +355,30 @@ bool fnDef() {
 #endif
 
     Token *start = iteratorToken;
+    Type type;
+    type.arraySize = -1;
 
-    if(typeBase() || consume(VOID)) {
+    bool isVoid = false;
+
+    if(typeBase(&type) || (isVoid = consume(VOID))) {
+        if(isVoid) type.typeBase = TB_VOID;
+
         if(consume(ID)) {
+            Token *tokenName = consumedToken;
+
             if(consume(LPAR)) {
+                Symbol *function = findSymbolInDomain(symbolTable, tokenName->value.text);
+                if(function) {
+                    printTokenErrorAndExit("Symbol redefinition: %s", tokenName->value.text);
+                }
+
+                function = newSymbol(tokenName->value.text, SK_FN);
+                function->type = type;
+                addSymbolToDomain(symbolTable, function);
+
+                owner = function;
+                pushDomain();
+
                 if(fnParam()) { // parameters are optional
                     while(consume(COMMA)) {
                         if(!fnParam()) printTokenErrorAndExit("Expected parameter after ',' in function header");
@@ -263,7 +386,10 @@ bool fnDef() {
                 }
 
                 if(consume(RPAR)) {
-                    if(stmCompound()) {
+                    if(stmCompound(false)) {
+                        dropDomain();
+                        owner = NULL;
+                        
                         return true;
                     }
                     printTokenErrorAndExit("Expected compound statement");
@@ -402,11 +528,11 @@ bool exprCast() {
     printf("# exprCast\n");
 #endif
 
-    
-
     if(consume(LPAR)) {
-        if(typeBase()) {
-            if(arrayDecl()) { }
+        Type type;
+
+        if(typeBase(&type)) {
+            if(arrayDecl(&type)) { }
 
             if(consume(RPAR)) {
                 if(exprCast()) {
@@ -423,7 +549,6 @@ bool exprCast() {
         return true;
     }
 
-    
     return false;
 }
 
@@ -458,14 +583,11 @@ bool exprMul() {
     printf("# exprMul\n");
 #endif
 
-    
-
     if(exprCast()) {
         if(exprMulPrim()) {
             return true;
         }
     }
-
     
     return false;
 }
@@ -501,15 +623,12 @@ bool exprAdd() {
     printf("# exprAdd\n");
 #endif
 
-    
-
     if(exprMul()) {
         if(exprAddPrim()) {
             return true;
         }
     }
 
-    
     return false;
 }
 
@@ -562,14 +681,11 @@ bool exprRel() {
     printf("# exprRel\n");
 #endif
 
-    
-
     if(exprAdd()) {
         if(exprRelPrim()) {
             return true;
         }
     }
-
     
     return false;
 }
@@ -605,14 +721,11 @@ bool exprEq() {
     printf("# exprEq\n");
 #endif
 
-    
-
     if(exprRel()) {
         if(exprEqPrim()) {
             return true;
         }
     }
-
     
     return false;
 }
@@ -639,14 +752,11 @@ bool exprAnd() {
     printf("# exprAnd\n");
 #endif
 
-    
-
     if(exprEq()) {
         if(exprAndPrim()) {
             return true;
         }
     }
-
     
     return false;
 }
@@ -673,15 +783,12 @@ bool exprOr() {
     printf("# exprOr\n");
 #endif
 
-    
-
     // Recursivitate stanga
     if(exprAnd()) {
         if(exprOrPrim()) {
             return true;
         }
     }
-
     
     return false;
 }
@@ -717,13 +824,10 @@ bool expr() {
     printf("# expr\n");
 #endif
 
-    
-
     if(exprAssign()) {
         return true;
     }
 
-    
     return false;
 }
 

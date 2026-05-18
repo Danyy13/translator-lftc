@@ -55,7 +55,7 @@ struct Symbol {
             Symbol *params; // the parameters of a function
             Symbol *locals; // all local vars of a function, including the ones from its inner domains
             void (*externFunctionsPointer)(); // !=NULL for extern functions
-            Instruction *instruction; // used if externFunctionsPointer==NULL
+            // Instruction *instruction; // used if externFunctionsPointer==NULL
         }function;
     };
 };
@@ -78,7 +78,7 @@ typedef struct domain {
 }Domain;
 
 // the current domain (the top of the domains's stack)
-extern Domain *symTable;
+extern Domain *symbolTable;
 
 // adds a domain to the top of the domains's stack
 Domain *pushDomain();

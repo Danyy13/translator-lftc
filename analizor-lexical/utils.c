@@ -15,12 +15,14 @@ void printErrorAndExit(const char *format,  ...) {
     vfprintf(stderr, format, va);
     va_end(va);
     fputc('\n', stderr);
+    fflush(NULL);
 
     exit(EXIT_FAILURE);
 }
 
 void *safeMalloc(size_t bytes) {
     void *ret = malloc(bytes);
+    // printf("Trying to allocate %lld bytes at address %p\n", bytes, ret);
     if(!ret) {
         printErrorAndExit("Malloc failed - Not enough memory");
         exit(EXIT_FAILURE);
