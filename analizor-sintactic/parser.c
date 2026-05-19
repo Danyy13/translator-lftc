@@ -9,10 +9,6 @@
 
 // #define DEBUG
 
-#define MISSING_SEMICOLON_MESSAGE "Expected ';'"
-#define MISSING_RACC_MESSAGE "Expected '}'"
-#define MISSING_LACC_MESSAGE "Expected '{'"
-
 Token *iteratorToken; // the iterator in the tokens list
 Token *consumedToken; // the last consumed token
 
@@ -215,6 +211,7 @@ bool structDef() {
                 printTokenErrorAndExit("Missing '}' after struct declaration");
             }
         }
+        // printTokenErrorAndExit("Missing or invalid struct name");
     }
 
     iteratorToken = start;
@@ -381,7 +378,7 @@ bool fnDef() {
 
                 if(fnParam()) { // parameters are optional
                     while(consume(COMMA)) {
-                        if(!fnParam()) printTokenErrorAndExit("Expected parameter after ',' in function header");
+                        if(!fnParam()) printTokenErrorAndExit("Expected valid parameter declaration after ',' in function header");
                     }
                 }
 
@@ -409,7 +406,6 @@ bool exprPrimary() {
 #ifdef DEBUG
     printf("# exprPrimary\n");
 #endif
-    
     
     if(consume(ID)) {
         if(consume(LPAR)) { // optional
@@ -444,7 +440,6 @@ bool exprPrimary() {
         // Can't check for errors as cast also begins with LPAR so we are not in a point of no return
     }
 
-    
     return false;
 }
 
@@ -482,15 +477,12 @@ bool exprPostfix() {
     printf("# exprPostfix\n");
 #endif
 
-    
-
     if(exprPrimary()) {
         if(exprPostfixPrim()) {
             return true;
         }
     }
 
-    
     return false;
 }
 
@@ -498,8 +490,6 @@ bool exprUnary() {
 #ifdef DEBUG
     printf("# exprUnary\n");
 #endif
-
-    
 
     if(consume(SUB)) {
         if(exprUnary()) {
@@ -518,7 +508,6 @@ bool exprUnary() {
     if(exprPostfix()) {
         return true;
     }
-
     
     return false;
 }
