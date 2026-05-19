@@ -107,18 +107,18 @@ bool varDef() {
             }
             printTokenErrorAndExit("Missing ';' after variable declaration");
         }
-        printTokenErrorAndExit("Missing or invalid variable name");
+        printTokenErrorAndExit("Missing or invalid variable name or function name or missing '{' from struct definition");
     }
 
     // Check if type name is missing
-    Token *start = iteratorToken;
-    if(consume(ID)) {
-        if(consume(SEMICOLON)) {
-            printTokenErrorAndExit("Missing or invalid type name in variable declaration");
-        }
-    }
+    // Token *start = iteratorToken;
+    // if(consume(ID)) {
+    //     if(consume(SEMICOLON)) {
+    //         printTokenErrorAndExit("Missing or invalid type name in variable declaration");
+    //     }
+    // }
 
-    iteratorToken = start;
+    // iteratorToken = start;
     return false;
 }
 
@@ -238,12 +238,12 @@ bool fnParam() {
     printf("# fnParam\n");
 #endif
 
-    Token *start = iteratorToken;
+    // Token *start = iteratorToken;
 
-    if(consume(RPAR)) {
-        iteratorToken = start;
-        return true;
-    }
+    // if(consume(RPAR)) {
+    //     iteratorToken = start;
+    //     return true;
+    // }
 
     if(typeBase()) {
         if(consume(ID)) {
@@ -253,7 +253,7 @@ bool fnParam() {
         }
         printTokenErrorAndExit("Missing parameter name");
     }
-    printTokenErrorAndExit("Missing or invalid type name in parameter declaration");
+    // printTokenErrorAndExit("Missing or invalid type name in parameter declaration");
     
     return false;
 }
@@ -270,7 +270,7 @@ bool fnDef() {
             if(consume(LPAR)) {
                 if(fnParam()) { // parameters are optional
                     while(consume(COMMA)) {
-                        if(!fnParam()) printTokenErrorAndExit("Expected parameter after ',' in function header");
+                        if(!fnParam()) printTokenErrorAndExit("Missing or invalid parameter after ',' in function header");
                     }
                 }
 
@@ -729,14 +729,11 @@ bool expr() {
     printf("# expr\n");
 #endif
 
-    
-
     if(exprAssign()) {
         return true;
     }
-
     
-    return false;
+    return false;   
 }
 
 bool unit() {
