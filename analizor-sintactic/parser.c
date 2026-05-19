@@ -67,6 +67,7 @@ bool typeBase() {
         if(consume(ID)) {
             return true;
         }
+        printTokenErrorAndExit("Missing or invalid struct identifier");
     }
 
     return false;
@@ -97,8 +98,6 @@ bool varDef() {
     printf("# varDef\n");
 #endif
 
-    
-
     if(typeBase()) {
         if(consume(ID)) {
             if(arrayDecl()) { }
@@ -108,10 +107,18 @@ bool varDef() {
             }
             printTokenErrorAndExit("Missing ';' after variable declaration");
         }
-        printTokenErrorAndExit("Missing or invalid variable name or function identifier");
+        printTokenErrorAndExit("Missing or invalid variable name");
     }
 
-    
+    // Check if type name is missing
+    Token *start = iteratorToken;
+    if(consume(ID)) {
+        if(consume(SEMICOLON)) {
+            printTokenErrorAndExit("Missing or invalid type name in variable declaration");
+        }
+    }
+
+    iteratorToken = start;
     return false;
 }
 
@@ -231,7 +238,12 @@ bool fnParam() {
     printf("# fnParam\n");
 #endif
 
-    
+    Token *start = iteratorToken;
+
+    if(consume(RPAR)) {
+        iteratorToken = start;
+        return true;
+    }
 
     if(typeBase()) {
         if(consume(ID)) {
@@ -241,7 +253,7 @@ bool fnParam() {
         }
         printTokenErrorAndExit("Missing parameter name");
     }
-
+    printTokenErrorAndExit("Missing or invalid type name in parameter declaration");
     
     return false;
 }
