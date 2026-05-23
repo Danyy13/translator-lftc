@@ -85,6 +85,7 @@ bool typeBase(Type *type) {
 
             return true;
         }
+        printTokenErrorAndExit("Missing or invalid struct identifier");
     }
 
     return false;
@@ -167,9 +168,18 @@ bool varDef() {
             }
             printTokenErrorAndExit("Missing ';' after variable declaration");
         }
-        printTokenErrorAndExit("Missing or invalid variable name or function identifier");
+        printTokenErrorAndExit("Missing or invalid variable name or function name or missing '{' from struct definition");
     }
 
+    // Check if type name is missing
+    // Token *start = iteratorToken;
+    // if(consume(ID)) {
+    //     if(consume(SEMICOLON)) {
+    //         printTokenErrorAndExit("Missing or invalid type name in variable declaration");
+    //     }
+    // }
+
+    // iteratorToken = start;
     return false;
 }
 
@@ -342,6 +352,7 @@ bool fnParam() {
         }
         printTokenErrorAndExit("Missing parameter name");
     }
+    // printTokenErrorAndExit("Missing or invalid type name in parameter declaration");
     
     return false;
 }
@@ -378,7 +389,7 @@ bool fnDef() {
 
                 if(fnParam()) { // parameters are optional
                     while(consume(COMMA)) {
-                        if(!fnParam()) printTokenErrorAndExit("Expected valid parameter declaration after ',' in function header");
+                        if(!fnParam()) printTokenErrorAndExit("Missing or invalid parameter after ',' in function header");
                     }
                 }
 
