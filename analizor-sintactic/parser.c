@@ -6,6 +6,7 @@
 #include "parser.h"
 #include "../analizor-domeniu/domain.h"
 #include "../analizor-lexical/utils.h"
+#include "../analizor-tipuri/type.h"
 
 // #define DEBUG
 
@@ -258,13 +259,17 @@ bool stmCompound(bool newDomain) {
 bool stm() {
 #ifdef DEBUG
     printf("# stm\n");
-#endif    
+#endif
+
+    Ret condition, expression;
 
     if(stmCompound(true)) { return true; }
 
     if(consume(IF)) {
         if(consume(LPAR)) {
-            if(expr()) {
+            if(expr(&condition)) {
+                if(!canBeScalar(&condition)) printTokenErrorAndExit("The if condition must be a scalar value"); // tipuri
+
                 if(consume(RPAR)) {
                     if(stm()) {
                         if(consume(ELSE)) { // optional
@@ -285,7 +290,9 @@ bool stm() {
 
     if(consume(WHILE)) {
         if(consume(LPAR)) {
-            if(expr()) {
+            if(expr(&condition)) {
+                if(!canBeScalar(&condition)) printTokenErrorAndExit("The while condition must be a scalar value"); // tipuri
+
                 if(consume(RPAR)) {
                     if(stm()) {
                         return true;
@@ -299,7 +306,13 @@ bool stm() {
     }
 
     if(consume(RETURN)) {
-        if(expr()) { }
+        if(expr(&condition)) {
+            if(owner->type.typeBase == TB_VOID) printTokenErrorAndExit("A void function cannot return a value");
+            if(!canBeScalar(&expression)) printTokenErrorAndExit("The return value must be a scalar value");
+            if(!convertsTo(&expression.type, &owner->type)) printTokenErrorAndExit("Cannot convert the return expression type to the function return type");
+        } else {
+            if(owner->type.typeBase != TB_VOID) printTokenErrorAndExit("A non-void function must return a value");
+        }
         
         if(consume(SEMICOLON)) {
             return true;
@@ -307,7 +320,7 @@ bool stm() {
         printTokenErrorAndExit("Missing ';' after return expression");
     }
 
-    if(expr()) {}
+    if(expr(&expression)) {}
     if(consume(SEMICOLON)) {
         return true;
     }
@@ -793,16 +806,25 @@ bool exprOr() {
     return false;
 }
 
-bool exprAssign() {
+bool exprAssign(Ret *ret) {
 #ifdef DEBUG
     printf("# exprAssign\n");
 #endif
 
     Token *start = iteratorToken;
+    Ret destination;
 
-    if(exprUnary()) {
+    if(exprUnary(&destination)) {
         if(consume(ASSIGN)) {
-            if(exprAssign()) {
+            if(exprAssign(ret)) {
+                if(!destination.isleftValue) printTokenErrorAndExit("The assign destination must be a left-value");
+                if(destination.isConstant) printErrorAndExit("The assign destination cannot be constant");
+                if(!canBeScalar(&destination)) printErrorAndExit("The assign destination must be scalar");
+                if(!canBeScalar(ret)) printTokenErrorAndExit("The assign source must be scalar");
+                if(!convertsTo(&ret->type, &destination.type)) printTokenErrorAndExit("The assign source cannot be converted to destination");
+                ret->isleftValue = false;
+                ret->isConstant = true;
+
                 return true;
             }
             printTokenErrorAndExit("Invalid or missing expression after '='");
@@ -819,12 +841,12 @@ bool exprAssign() {
     return false;
 }
 
-bool expr() {
+bool expr(Ret *ret) {
 #ifdef DEBUG
     printf("# expr\n");
 #endif
 
-    if(exprAssign()) {
+    if(exprAssign(ret)) {
         return true;
     }
 
