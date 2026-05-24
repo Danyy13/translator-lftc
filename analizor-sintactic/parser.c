@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "parser.h"
 #include "../analizor-domeniu/domain.h"
@@ -17,7 +18,10 @@ Symbol *owner = NULL;
 
 // pre-declaration of functions that need it
 bool stm();
-bool expr();
+bool expr(Ret *ret);
+bool exprMulPrim(Ret *ret);
+bool exprAddPrim(Ret *ret);
+bool exprRelPrim(Ret *ret);
 
 void printTokenErrorAndExit(const char *fmt, ...) {
     fprintf(stderr, "Error in line %d: ", iteratorToken->line);
@@ -306,7 +310,7 @@ bool stm() {
     }
 
     if(consume(RETURN)) {
-        if(expr(&condition)) {
+        if(expr(&expression)) {
             if(owner->type.typeBase == TB_VOID) printTokenErrorAndExit("A void function cannot return a value");
             if(!canBeScalar(&expression)) printTokenErrorAndExit("The return value must be a scalar value");
             if(!convertsTo(&expression.type, &owner->type)) printTokenErrorAndExit("Cannot convert the return expression type to the function return type");
@@ -434,7 +438,7 @@ bool exprPrimary(Ret *ret) {
     if(consume(ID)) {
         Token *tokenName = consumedToken;
         Symbol *symbol = findSymbol(tokenName->value.text);
-        if(!symbol) printTokenErrorAndExit("Undefined identificator: %s", tokenName->value.text);
+        if(!symbol) printTokenErrorAndExit("Undefined identificator: \"%s\"", tokenName->value.text);
 
         if(consume(LPAR)) { // optional
             if(symbol->symbolKind != SK_FN) printTokenErrorAndExit("Only a function can be called");
@@ -464,7 +468,7 @@ bool exprPrimary(Ret *ret) {
             printTokenErrorAndExit("Expected ')' after function call");
         }
 
-        if(symbol->symbolKind == SK_FN) printTokenErrorAndExit("A function cal only be called");
+        if(symbol->symbolKind == SK_FN) printTokenErrorAndExit("A function can only be called");
         *ret = (Ret){symbol->type, true, symbol->type.arraySize >= 0};
 
         return true;
@@ -538,7 +542,7 @@ bool exprPostfixPrim(Ret *ret) {
             if(ret->type.typeBase != TB_STRUCT) printTokenErrorAndExit("A field can only be selected from a struct");
             
             Symbol *symbol = findSymbolInList(ret->type.symbol->structMembers, tokenName->value.text);
-            if(!symbol) printTokenErrorAndExit("The structure %s does not have a field %s", ret->type.symbol->name, tokenName->value.text);
+            if(!symbol) printTokenErrorAndExit("The structure %s does not have a field \"%s\"", ret->type.symbol->name, tokenName->value.text);
             *ret=(Ret){symbol->type, true, symbol->type.arraySize >= 0};
 
             if(exprPostfixPrim(ret)) {
@@ -659,6 +663,8 @@ bool handleExprMulPrim(Ret *ret, AtomCode atomCode) {
         }
     }
     printTokenErrorAndExit("Invalid or missing expression after '+'");
+
+    return true;
 }
 
 bool exprMulPrim(Ret *ret) {
@@ -717,6 +723,8 @@ bool handleExprAddPrim(Ret *ret, AtomCode atomCode) {
         }
     }
     printTokenErrorAndExit("Invalid or missing expression after '+'");
+
+    return true;
 }
 
 bool exprAddPrim(Ret *ret) {
@@ -750,20 +758,20 @@ bool exprAdd(Ret *ret) {
 }
 
 bool handleRelPrim(Ret *ret, AtomCode atomCode) {
-    char operand[3] = {0};
+    char operand[3];
 
     switch(atomCode) {
         case LESS:
-            strncpy(operand, "<", 1);
+            strncpy(operand, "<", 2);
             break;
         case LESSEQ:
-            strncpy(operand, "<=", 2);
+            strncpy(operand, "<=", 3);
             break;
         case GREATER:
-            strncpy(operand, ">", 1);
+            strncpy(operand, ">", 2);
             break;
         case GREATEREQ:
-            strncpy(operand, ">=", 2);
+            strncpy(operand, ">=", 3);
             break;
         default:
             break;
@@ -781,6 +789,8 @@ bool handleRelPrim(Ret *ret, AtomCode atomCode) {
         }
     }
     printTokenErrorAndExit("Invalid or missing expression after '%s'", operand);
+
+    return true;
 }
 
 bool exprRelPrim(Ret *ret) {

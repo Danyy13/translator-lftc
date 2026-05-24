@@ -10,7 +10,7 @@ bool canBeScalar(Ret *ret) {
     return true;
 }
 
-bool canConvertTo(Type *src, Type *dst) {
+bool convertsTo(Type *src, Type *dst) {
     // the pointers (arrays) can be converted one to another, but in nothing else
     if(src->arraySize >= 0) {
         if(dst->arraySize >= 0) return true;
@@ -40,7 +40,7 @@ bool canConvertTo(Type *src, Type *dst) {
     }
 }
 
-bool arithmeticalResultCanConvert(Type *op1, Type *op2, Type *result) {
+bool resultsArithmeticalType(Type *op1, Type *op2, Type *result) {
     // there are no arithmetic operations with pointers
     if(op1->arraySize >= 0 || op2->arraySize >= 0) return false;
 
