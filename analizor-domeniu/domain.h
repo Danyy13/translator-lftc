@@ -1,6 +1,6 @@
 #pragma once
 
-// #include "vm.h"
+#include "../masina-virtuala/vm.h"
 
 struct Symbol;
 typedef struct Symbol Symbol;
@@ -54,8 +54,8 @@ struct Symbol {
         struct {
             Symbol *params; // the parameters of a function
             Symbol *locals; // all local vars of a function, including the ones from its inner domains
-            void (*externFunctionsPointer)(); // !=NULL for extern functions
-            // Instruction *instruction; // used if externFunctionsPointer==NULL
+            void (*externFunctionPointer)(); // !=NULL for extern functions
+            Instruction *instruction; // used if externFunctionsPointer==NULL
         }function;
     };
 };

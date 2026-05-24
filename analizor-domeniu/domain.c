@@ -200,7 +200,7 @@ Symbol *addSymbolToDomain(Domain *d,Symbol *s){
 
 Symbol *addExtFn(const char *name,void(*extFnPtr)(),Type ret){
 	Symbol *fn=newSymbol(name,SK_FN);
-	fn->function.externFunctionsPointer=extFnPtr;
+	fn->function.externFunctionPointer=extFnPtr;
 	fn->type=ret;
 	addSymbolToDomain(symbolTable,fn);
 	return fn;
