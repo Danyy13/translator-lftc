@@ -426,36 +426,72 @@ bool fnDef() {
     return false;
 }
 
-bool exprPrimary() {
+bool exprPrimary(Ret *ret) {
 #ifdef DEBUG
     printf("# exprPrimary\n");
 #endif
     
     if(consume(ID)) {
+        Token *tokenName = consumedToken;
+        Symbol *symbol = findSymbol(tokenName->value.text);
+        if(!symbol) printTokenErrorAndExit("Undefined identificator: %s", tokenName->value.text);
+
         if(consume(LPAR)) { // optional
-            if(expr()) {
+            if(symbol->symbolKind != SK_FN) printTokenErrorAndExit("Only a function can be called");
+            Ret retArgument;
+            Symbol *param = symbol->function.params;
+
+            if(expr(&retArgument)) {
+                if(!param) printTokenErrorAndExit("Too many arguments in function call");
+                if(!convertsTo(&retArgument.type, &param->type)) printTokenErrorAndExit("In function call, cannot convert to the argument type to the parameter type");
+                param = param->next;
+
                 while(consume(COMMA)) {
-                    if(!expr()) printTokenErrorAndExit("Expected expression after ',' in function call");
+                    if(!expr(&retArgument)) printTokenErrorAndExit("Expected expression after ',' in function call");
+                    //expr consumed
+                    if(!param) printTokenErrorAndExit("Too many arguments in function call");
+                    if(!convertsTo(&retArgument.type, &param->type)) printTokenErrorAndExit("In function call, cannot convert to the argument type to the parameter type");
+                    param = param->next;
                 }
             }
 
             if(consume(RPAR)) {
+                if(param) printErrorAndExit("Too few arguments in function call");
+                *ret = (Ret){symbol->type, false, true};
+
                 return true;
-            } else {
-                printTokenErrorAndExit("Expected ')'");
             }
+            printTokenErrorAndExit("Expected ')' after function call");
         }
+
+        if(symbol->symbolKind == SK_FN) printTokenErrorAndExit("A function cal only be called");
+        *ret = (Ret){symbol->type, true, symbol->type.arraySize >= 0};
 
         return true;
     }
 
-    if(consume(INT)) { return true; }
-    if(consume(DOUBLE)) { return true; }
-    if(consume(CHAR)) { return true; }
-    if(consume(STRING)) { return true; }
+    if(consume(INT)) {
+        *ret = (Ret){{TB_INT, NULL, -1}, false, true};
+        return true;
+    }
+
+    if(consume(DOUBLE)) {
+        *ret = (Ret){{TB_DOUBLE, NULL, -1}, false, true};
+        return true;
+    }
+
+    if(consume(CHAR)) {
+        *ret = (Ret){{TB_CHAR, NULL, -1}, false, true};
+        return true;
+    }
+
+    if(consume(STRING)) {
+        *ret = (Ret){{TB_CHAR, NULL, -1}, false, true};
+        return true;
+    }
 
     if(consume(LPAR)) {
-        if(expr()) {
+        if(expr(ret)) {
             if(consume(RPAR)) {
                 return true;
             }
@@ -467,15 +503,25 @@ bool exprPrimary() {
     return false;
 }
 
-bool exprPostfixPrim() {
+bool exprPostfixPrim(Ret *ret) {
 #ifdef DEBUG
     printf("# exprPostfixPrim\n");
 #endif
 
     if(consume(LBRACKET)) {
-        if(expr()) {
+        Ret index;
+
+        if(expr(&index)) {
             if(consume(RBRACKET)) {
-                if(exprPostfixPrim()) {
+                if(ret->type.arraySize < 0) printTokenErrorAndExit("Only an array can be indexed");
+                
+                Type typeInt = {TB_INT, NULL, -1};
+                if(!convertsTo(&index.type, &typeInt)) printTokenErrorAndExit("The index is not convertible to int");
+                ret->type.arraySize = -1;
+                ret->isleftValue = true;
+                ret->isConstant = false;
+
+                if(exprPostfixPrim(ret)) {
                     return true;
                 }
                 printTokenErrorAndExit("Invalid or missing expression");
@@ -487,7 +533,15 @@ bool exprPostfixPrim() {
 
     if(consume(DOT)) {
         if(consume(ID)) {
-            if(exprPostfixPrim()) {
+            Token *tokenName = consumedToken;
+
+            if(ret->type.typeBase != TB_STRUCT) printTokenErrorAndExit("A field can only be selected from a struct");
+            
+            Symbol *symbol = findSymbolInList(ret->type.symbol->structMembers, tokenName->value.text);
+            if(!symbol) printTokenErrorAndExit("The structure %s does not have a field %s", ret->type.symbol->name, tokenName->value.text);
+            *ret=(Ret){symbol->type, true, symbol->type.arraySize >= 0};
+
+            if(exprPostfixPrim(ret)) {
                 return true;
             }
         } else printTokenErrorAndExit("Missing name");
@@ -496,13 +550,13 @@ bool exprPostfixPrim() {
     return true;
 }
 
-bool exprPostfix() {
+bool exprPostfix(Ret *ret) {
 #ifdef DEBUG
     printf("# exprPostfix\n");
 #endif
 
-    if(exprPrimary()) {
-        if(exprPostfixPrim()) {
+    if(exprPrimary(ret)) {
+        if(exprPostfixPrim(ret)) {
             return true;
         }
     }
@@ -510,45 +564,59 @@ bool exprPostfix() {
     return false;
 }
 
-bool exprUnary() {
+bool exprUnary(Ret *ret) {
 #ifdef DEBUG
     printf("# exprUnary\n");
 #endif
 
     if(consume(SUB)) {
-        if(exprUnary()) {
+        if(exprUnary(ret)) {
+            if(!canBeScalar(ret)) printTokenErrorAndExit("Unary '-' must have scalar operand");
+
             return true;
         }
         printTokenErrorAndExit("Invalid or missing expression after unary operator '-'");
     }
 
     if(consume(NOT)) {
-        if(exprUnary()) {
+        if(exprUnary(ret)) {
+            if(!canBeScalar(ret)) printTokenErrorAndExit("Unary '!' must have scalar operand");
+
             return true;
         }
         printTokenErrorAndExit("Invalid or missing expression after unary operator '!'");
     }
 
-    if(exprPostfix()) {
+    ret->isleftValue = false;
+    ret->isConstant = true;
+
+    if(exprPostfix(ret)) {
         return true;
     }
     
     return false;
 }
 
-bool exprCast() {
+bool exprCast(Ret *ret) {
 #ifdef DEBUG
     printf("# exprCast\n");
 #endif
 
     if(consume(LPAR)) {
         Type type;
+        Ret op;
 
         if(typeBase(&type)) {
             if(arrayDecl(&type)) { }
 
             if(consume(RPAR)) {
-                if(exprCast()) {
+                if(exprCast(&op)) {
+                    if(type.typeBase == TB_STRUCT) printTokenErrorAndExit("Cannot convert to a struct type");
+                    if(op.type.typeBase == TB_STRUCT) printTokenErrorAndExit("Cannot convert a struct");
+                    if(op.type.arraySize >= 0 && type.arraySize < 0) printTokenErrorAndExit("An array can be converted only to another array");
+                    if(op.type.arraySize < 0 && type.arraySize >= 0) printTokenErrorAndExit("A scalar can only be converted to another scalar");
+                    *ret = (Ret){type, false, true};
+
                     return true;
                 }
                 printTokenErrorAndExit("Invalid or missing expression after cast");
@@ -558,46 +626,64 @@ bool exprCast() {
         printTokenErrorAndExit("Invalid or missing type in cast");
     }
 
-    if(exprUnary()) {
+    if(exprUnary(ret)) {
         return true;
     }
 
     return false;
 }
 
-bool exprMulPrim() {
+bool handleExprMulPrim(Ret *ret, AtomCode atomCode) {
+    char operand = 0;
+
+    switch(atomCode) {
+        case MUL:
+            operand = '*';
+            break;
+        case DIV:
+            operand = '/';
+            break;
+        default:
+            break;
+    }
+
+    Ret right;
+
+    if(exprCast(&right)) {
+        Type destination;
+        if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for %c", operand);
+        *ret = (Ret){destination, false, true};
+
+        if(exprMulPrim(ret)) {
+            return true;
+        }
+    }
+    printTokenErrorAndExit("Invalid or missing expression after '+'");
+}
+
+bool exprMulPrim(Ret *ret) {
 #ifdef DEBUG
     printf("# exprMulPrim\n");
 #endif
 
     if(consume(MUL)) {
-        if(exprCast()) {
-            if(exprMulPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '*'");
+        handleExprMulPrim(ret, MUL);
     }
 
     if(consume(DIV)) {
-        if(exprCast()) {
-            if(exprMulPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '/'");
+        handleExprMulPrim(ret, DIV);
     }
 
     return true;
 }
 
-bool exprMul() {
+bool exprMul(Ret *ret) {
 #ifdef DEBUG
     printf("# exprMul\n");
 #endif
 
-    if(exprCast()) {
-        if(exprMulPrim()) {
+    if(exprCast(ret)) {
+        if(exprMulPrim(ret)) {
             return true;
         }
     }
@@ -605,39 +691,57 @@ bool exprMul() {
     return false;
 }
 
-bool exprAddPrim() {
+bool handleExprAddPrim(Ret *ret, AtomCode atomCode) {
+    char operand = 0;
+
+    switch(atomCode) {
+        case ADD:
+            operand = '+';
+            break;
+        case SUB:
+            operand = '-';
+            break;
+        default:
+            break;
+    }
+
+    Ret right;
+
+    if(exprMul(&right)) {
+        Type destination;
+        if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for %c", operand);
+        *ret = (Ret){destination, false, true};
+
+        if(exprAddPrim(ret)) {
+            return true;
+        }
+    }
+    printTokenErrorAndExit("Invalid or missing expression after '+'");
+}
+
+bool exprAddPrim(Ret *ret) {
 #ifdef DEBUG
     printf("# exprAddPrim\n");
 #endif
 
     if(consume(ADD)) {
-        if(exprMul()) {
-            if(exprAddPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '+'");
+        handleExprAddPrim(ret, ADD);
     }
 
     if(consume(SUB)) {
-        if(exprMul()) {
-            if(exprAddPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '-'");
+        handleExprAddPrim(ret, SUB);
     }    
 
     return true;
 }
 
-bool exprAdd() {
+bool exprAdd(Ret *ret) {
 #ifdef DEBUG
     printf("# exprAdd\n");
 #endif
 
-    if(exprMul()) {
-        if(exprAddPrim()) {
+    if(exprMul(ret)) {
+        if(exprAddPrim(ret)) {
             return true;
         }
     }
@@ -645,57 +749,71 @@ bool exprAdd() {
     return false;
 }
 
-bool exprRelPrim() {
+bool handleRelPrim(Ret *ret, AtomCode atomCode) {
+    char operand[3] = {0};
+
+    switch(atomCode) {
+        case LESS:
+            strncpy(operand, "<", 1);
+            break;
+        case LESSEQ:
+            strncpy(operand, "<=", 2);
+            break;
+        case GREATER:
+            strncpy(operand, ">", 1);
+            break;
+        case GREATEREQ:
+            strncpy(operand, ">=", 2);
+            break;
+        default:
+            break;
+    }
+
+    Ret right;
+
+    if(exprAdd(&right)) {
+        Type destination;
+        if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for %s", operand);
+        *ret = (Ret){{TB_INT, NULL, -1}, false, true};
+
+        if(exprRelPrim(ret)) {
+            return true;
+        }
+    }
+    printTokenErrorAndExit("Invalid or missing expression after '%s'", operand);
+}
+
+bool exprRelPrim(Ret *ret) {
 #ifdef DEBUG
     printf("# exprRelPrim\n");
 #endif
 
     if(consume(LESS)) {
-        if(exprAdd()) {
-            if(exprRelPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '<'");
+        handleRelPrim(ret, LESS);
     }
 
     if(consume(LESSEQ)) {
-        if(exprAdd()) {
-            if(exprRelPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '<='");
+        handleRelPrim(ret, LESSEQ);
     }
 
     if(consume(GREATER)) {
-        if(exprAdd()) {
-            if(exprRelPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '>'");
+        handleRelPrim(ret, GREATER);
     }
 
     if(consume(GREATEREQ)) {
-        if(exprAdd()) {
-            if(exprRelPrim()) {
-                return true;
-            }
-        }
-        printTokenErrorAndExit("Invalid or missing expression after '>='");
+        handleRelPrim(ret, GREATEREQ);
     }
 
     return true;
 }
 
-bool exprRel() {
+bool exprRel(Ret *ret) {
 #ifdef DEBUG
     printf("# exprRel\n");
 #endif
 
-    if(exprAdd()) {
-        if(exprRelPrim()) {
+    if(exprAdd(ret)) {
+        if(exprRelPrim(ret)) {
             return true;
         }
     }
@@ -703,14 +821,20 @@ bool exprRel() {
     return false;
 }
 
-bool exprEqPrim() {
+bool exprEqPrim(Ret *ret) {
 #ifdef DEBUG
     printf("# exprEqPrim\n");
 #endif
 
     if(consume(EQUAL)) {
-        if(exprRel()) {
-            if(exprEqPrim()) {
+        Ret right;
+
+        if(exprRel(&right)) {
+            Type destination;
+            if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for ==");
+            *ret = (Ret){{TB_INT, NULL, -1}, false, true};
+
+            if(exprEqPrim(ret)) {
                 return true;
             }
         }
@@ -718,8 +842,14 @@ bool exprEqPrim() {
     }
 
     if(consume(NOTEQ)) {
-        if(exprRel()) {
-            if(exprEqPrim()) {
+        Ret right;
+
+        if(exprRel(&right)) {
+            Type destination;
+            if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for !=");
+            *ret = (Ret){{TB_INT, NULL, -1}, false, true};
+
+            if(exprEqPrim(ret)) {
                 return true;
             }
         }
@@ -729,13 +859,13 @@ bool exprEqPrim() {
     return true;
 }
 
-bool exprEq() {
+bool exprEq(Ret *ret) {
 #ifdef DEBUG
     printf("# exprEq\n");
 #endif
 
-    if(exprRel()) {
-        if(exprEqPrim()) {
+    if(exprRel(ret)) {
+        if(exprEqPrim(ret)) {
             return true;
         }
     }
@@ -743,14 +873,20 @@ bool exprEq() {
     return false;
 }
 
-bool exprAndPrim() {
+bool exprAndPrim(Ret *ret) {
 #ifdef DEBUG
     printf("# exprAndPrim\n");
 #endif
 
     if(consume(AND)) {
-        if(exprEq()) {
-            if(exprAndPrim()) {
+        Ret right;
+
+        if(exprEq(&right)) {
+            Type destination;
+            if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for &&");
+            *ret = (Ret){{TB_INT, NULL, -1}, false, true};
+
+            if(exprAndPrim(ret)) {
                 return true;
             }
         }
@@ -760,13 +896,13 @@ bool exprAndPrim() {
     return true;
 }
 
-bool exprAnd() {
+bool exprAnd(Ret *ret) {
 #ifdef DEBUG
     printf("# exprAnd\n");
 #endif
 
-    if(exprEq()) {
-        if(exprAndPrim()) {
+    if(exprEq(ret)) {
+        if(exprAndPrim(ret)) {
             return true;
         }
     }
@@ -774,14 +910,20 @@ bool exprAnd() {
     return false;
 }
 
-bool exprOrPrim() {
+bool exprOrPrim(Ret *ret) {
 #ifdef DEBUG
     printf("# exprOrPrim\n");
 #endif
 
     if(consume(OR)) {
-        if(exprAnd()) {
-            if(exprOrPrim()) {
+        Ret right;
+
+        if(exprAnd(&right)) {
+            Type destination;
+            if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for ||");
+            *ret = (Ret){{TB_INT, NULL, -1}, false, true};
+
+            if(exprOrPrim(ret)) {
                 return true;
             }
         }
@@ -791,14 +933,14 @@ bool exprOrPrim() {
     return true;
 }
 
-bool exprOr() {
+bool exprOr(Ret *ret) {
 #ifdef DEBUG
     printf("# exprOr\n");
 #endif
 
     // Recursivitate stanga
-    if(exprAnd()) {
-        if(exprOrPrim()) {
+    if(exprAnd(ret)) {
+        if(exprOrPrim(ret)) {
             return true;
         }
     }
@@ -833,7 +975,7 @@ bool exprAssign(Ret *ret) {
 
     iteratorToken = start;
 
-    if(exprOr()) {
+    if(exprOr(ret)) {
         return true;
     }
 
