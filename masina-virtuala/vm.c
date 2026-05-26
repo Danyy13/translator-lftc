@@ -5,7 +5,7 @@
 #include "vm.h"
 
 Instruction *addInstruction(Instruction **list,Opcode op){
-	Instruction *i=(Instruction*)safeAlloc(sizeof(Instruction));
+	Instruction *i=(Instruction*) safeMalloc(sizeof(Instruction));
 	i->op=op;
 	i->next=NULL;
 	if(*list){
@@ -35,32 +35,32 @@ Val *SP=stack-1;		// Stack pointer - the stack's top - points to the value from 
 Val *FP=NULL;		// the initial value doesn't matter
 
 void pushv(Val v){
-	if(SP+1==stack+10000)err("trying to push into a full stack");
+	if(SP+1==stack+10000)printErrorAndExit("trying to push into a full stack");
 	*++SP=v;
 	}
 
 Val popv(){
-	if(SP==stack-1)err("trying to pop from empty stack");
+	if(SP==stack-1)printErrorAndExit("trying to pop from empty stack");
 	return *SP--;
 	}
 
 void pushi(int i){
-	if(SP+1==stack+10000)err("trying to push into a full stack");
+	if(SP+1==stack+10000)printErrorAndExit("trying to push into a full stack");
 	(++SP)->i=i;
 	}
 
 int popi(){
-	if(SP==stack-1)err("trying to pop from empty stack");
+	if(SP==stack-1)printErrorAndExit("trying to pop from empty stack");
 	return SP--->i;
 	}
 
 void pushp(void *p){
-	if(SP+1==stack+10000)err("trying to push into a full stack");
+	if(SP+1==stack+10000)printErrorAndExit("trying to push into a full stack");
 	(++SP)->p=p;
 	}
 
 void *popp(){
-	if(SP==stack-1)err("trying to pop from empty stack");
+	if(SP==stack-1)printErrorAndExit("trying to pop from empty stack");
 	return SP--->p;
 	}
 
@@ -75,11 +75,12 @@ void vmInit(){
 
 void run(Instruction *IP){
 	Val v;
-	int iArg,iTop,iBefore;
+	int iArg, iTop, iBefore;
 	void(*extFnPtr)();
+	
 	for(;;){
 		// shows the index of the current instruction and the number of values from stack
-		printf("%p/%d\t",IP,(int)(SP-stack+1));
+		printf("%p/%d\t", IP, (int)(SP - stack + 1));
 		switch(IP->op){
 			case OP_HALT:
 				printf("HALT");
@@ -149,7 +150,7 @@ void run(Instruction *IP){
 				printf("LESS.i\t// %d<%d -> %d",iBefore,iTop,iBefore<iTop);
 				IP=IP->next;
 				break;
-			default:err("run: instructiune neimplementata: %d",IP->op);
+			default:printErrorAndExit("run: instructiune neimplementata: %d",IP->op);
 			}
 		putchar('\n');
 		}
@@ -166,11 +167,11 @@ void f(int n){		// stack frame: n[-2] ret[-1] oldFP[0] i[1]
 	}
 */
 Instruction *genTestProgram(){
-	Instruction *code=NULL;
-	addInstructionWithInt(&code,OP_PUSH_I,2);
-	Instruction *callPos=addInstruction(&code,OP_CALL);
-	addInstruction(&code,OP_HALT);
-	callPos->arg.instruction=addInstructionWithInt(&code,OP_ENTER,1);
+	Instruction *code = NULL;
+	addInstructionWithInt(&code, OP_PUSH_I, 2);
+	Instruction *callPos = addInstruction(&code,OP_CALL);
+	addInstruction(&code, OP_HALT);
+	callPos->arg.instruction = addInstructionWithInt(&code, OP_ENTER, 1);
 	// int i=0;
 	addInstructionWithInt(&code,OP_PUSH_I,0);
 	addInstructionWithInt(&code,OP_FPSTORE,1);
@@ -182,7 +183,7 @@ Instruction *genTestProgram(){
 	// put_i(i);
 	addInstructionWithInt(&code,OP_FPLOAD,1);
 	Symbol *s=findSymbol("put_i");
-	if(!s)err("undefined: put_i");
+	if(!s)printErrorAndExit("undefined: put_i");
 	addInstruction(&code,OP_CALL_EXT)->arg.externFunctionPointer=s->function.externFunctionPointer;
 	// i=i+1;
 	addInstructionWithInt(&code,OP_FPLOAD,1);

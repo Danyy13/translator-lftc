@@ -5,6 +5,7 @@
 #include "analizor-lexical/utils.h"
 #include "analizor-sintactic/parser.h"
 #include "analizor-domeniu/domain.h"
+#include "masina-virtuala/vm.h"
 
 #define LEXER_OUTPUT_FILEPATH "lexer_out.txt"
 
@@ -26,7 +27,8 @@ void analizorSintactic(Token *tokenList) {
 
 int main(int argc, char *argv[]) {
     if(argc != 2) {
-        printErrorAndExit("Invalid number of arguments. Usage: ./app.exe {inputFilePath}");
+        fprintf(stderr, "Invalid number of arguments. Usage: ./app.exe {inputFilePath}");
+        exit(EXIT_FAILURE);
     }
 
     char *testFilePath = argv[1];
@@ -34,9 +36,13 @@ int main(int argc, char *argv[]) {
     Token *tokenList = analizorLexical(testFilePath);
 
     pushDomain(); // domain
+    vmInit();
     analizorSintactic(tokenList);
 
-    showDomain(symbolTable, "global"); // domain    
+    Instruction *testCode = genTestProgram();
+    run(testCode);
+
+    // showDomain(symbolTable, "global"); // domain    
     dropDomain(); // domain
 
     free(tokenList);
