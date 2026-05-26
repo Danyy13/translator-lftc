@@ -39,8 +39,11 @@ int main(int argc, char *argv[]) {
     vmInit();
     analizorSintactic(tokenList);
 
-    Instruction *testCode = genTestProgram();
-    run(testCode);
+    // Instruction *testCode = genTestProgram();
+    // run(testCode);
+
+    Instruction *testCodeDouble = genTestProgramDouble();
+    run(testCodeDouble);
 
     // showDomain(symbolTable, "global"); // domain    
     dropDomain(); // domain

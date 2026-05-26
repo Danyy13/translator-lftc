@@ -56,9 +56,9 @@ int main() {
     // err9 = 1;
 
     // 9. "the assign destination must be scalar"
-    struct myStruct err9a;
-    int err9b;
-    err9a = err9b;
+    // struct myStruct err9a;
+    // int err9b;
+    // err9a = err9b;
 
     // 10. "the assign source must be scalar"
     // int err10[10];

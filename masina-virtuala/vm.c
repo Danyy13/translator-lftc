@@ -4,18 +4,22 @@
 #include "../analizor-domeniu/domain.h"
 #include "vm.h"
 
+void put_d();
+void pushf(double f);
+double popf();
+
 Instruction *addInstruction(Instruction **list,Opcode op){
-	Instruction *i=(Instruction*) safeMalloc(sizeof(Instruction));
-	i->op=op;
-	i->next=NULL;
+	Instruction *instruction = (Instruction*)safeMalloc(sizeof(Instruction));
+	instruction->op=op;
+	instruction->next=NULL;
 	if(*list){
 		Instruction *p=*list;
 		while(p->next)p=p->next;
-		p->next=i;
+		p->next=instruction;
 		}else{
-		*list=i;
+		*list=instruction;
 		}
-	return i;
+	return instruction;
 	}
 
 Instruction *addInstructionWithInt(Instruction **list,Opcode op,int argVal){
@@ -73,10 +77,21 @@ void vmInit(){
 	addFnParam(fn,"i",(Type){TB_INT,NULL,-1});
 	}
 
+void showInstructionList(Instruction *list) {
+	Instruction *traverser = list;
+	while(traverser != NULL) {
+		printf("%d - %d - %.2lf\n", traverser->op, traverser->arg.i, traverser->arg.f);
+		traverser = traverser->next;
+	}
+}
+
 void run(Instruction *IP){
 	Val v;
 	int iArg, iTop, iBefore;
+	double fTop, fBefore;
 	void(*extFnPtr)();
+
+	// showInstructionList(IP);
 	
 	for(;;){
 		// shows the index of the current instruction and the number of values from stack
@@ -150,6 +165,29 @@ void run(Instruction *IP){
 				printf("LESS.i\t// %d<%d -> %d",iBefore,iTop,iBefore<iTop);
 				IP=IP->next;
 				break;
+			
+			// user code - double
+
+			case OP_PUSH_F:
+				printf("PUSH.f\t%.2lf", IP->arg.f);
+				pushf(IP->arg.f);
+				IP=IP->next;
+				break;
+			case OP_ADD_F:
+				fTop = popf();
+				fBefore = popf();
+				pushf(fBefore + fTop);
+				printf("ADD.f\t// %.2lf+%.2lf -> %.2lf", fBefore, fTop, fBefore + fTop);
+				IP=IP->next;
+				break;
+			case OP_LESS_F:
+				fTop = popf();
+				fBefore = popf();
+				pushf(fBefore < fTop);
+				printf("LESS.f\t// %.2lf<%.2lf -> %d", fBefore, fTop, fBefore < fTop);
+				IP=IP->next;
+				break;
+
 			default:printErrorAndExit("run: instructiune neimplementata: %d",IP->op);
 			}
 		putchar('\n');
@@ -166,6 +204,7 @@ void f(int n){		// stack frame: n[-2] ret[-1] oldFP[0] i[1]
 		}
 	}
 */
+
 Instruction *genTestProgram(){
 	Instruction *code = NULL;
 	addInstructionWithInt(&code, OP_PUSH_I, 2);
@@ -195,4 +234,49 @@ Instruction *genTestProgram(){
 	// returns from function
 	jfAfter->arg.instruction=addInstructionWithInt(&code,OP_RET_VOID,1);
 	return code;
-	}
+}
+
+void put_d() {
+	printf("=> %.2lf", popf());
+}
+
+void pushf(double f) {
+	if(SP+1 == stack + 10000) printErrorAndExit("trying to push into a full stack");
+	(++SP)->f=f;
+}
+
+double popf() {
+	if(SP == stack - 1) printErrorAndExit("trying to pop from empty stack");
+	return SP--->f;
+}
+
+Instruction *genTestProgramDouble() {
+	Instruction *code = NULL;
+	addInstructionWithDouble(&code, OP_PUSH_F, 2.0);
+	Instruction *callPos = addInstruction(&code, OP_CALL);
+	addInstruction(&code, OP_HALT);
+	callPos->arg.instruction = addInstructionWithInt(&code, OP_ENTER, 1);
+	// int i=0;
+	addInstructionWithInt(&code,OP_PUSH_I,0);
+	addInstructionWithInt(&code,OP_FPSTORE,1);
+	// while(i<n){
+	Instruction *whilePos=addInstructionWithInt(&code,OP_FPLOAD,1);
+	addInstructionWithInt(&code,OP_FPLOAD,-2);
+	addInstruction(&code,OP_LESS_I);
+	Instruction *jfAfter=addInstruction(&code,OP_JF);
+	// put_i(i);
+	addInstructionWithInt(&code,OP_FPLOAD,1);
+	Symbol *s=findSymbol("put_i");
+	if(!s)printErrorAndExit("undefined: put_i");
+	addInstruction(&code,OP_CALL_EXT)->arg.externFunctionPointer=s->function.externFunctionPointer;
+	// i=i+1;
+	addInstructionWithInt(&code,OP_FPLOAD,1);
+	addInstructionWithInt(&code,OP_PUSH_I,1);
+	addInstruction(&code,OP_ADD_I);
+	addInstructionWithInt(&code,OP_FPSTORE,1);
+	// } ( the next iteration)
+	addInstruction(&code,OP_JMP)->arg.instruction=whilePos;
+	// returns from function
+	jfAfter->arg.instruction=addInstructionWithInt(&code,OP_RET_VOID,1);
+	return code;
+}
