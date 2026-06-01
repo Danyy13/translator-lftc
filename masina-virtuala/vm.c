@@ -28,7 +28,7 @@ Instruction *addInstructionWithInt(Instruction **list,Opcode op,int argVal){
 	return i;
 	}
 
-Instruction *addInstructionWithDouble(Instruction **list,Opcode op,double argVal){
+Instruction *addInstructionWithDouble(Instruction **list, Opcode op, double argVal){
 	Instruction *i=addInstruction(list,op);
 	i->arg.f=argVal;
 	return i;
@@ -72,10 +72,13 @@ void put_i(){
 	printf("=> %d",popi());
 	}
 
-void vmInit(){
-	Symbol *fn=addExtFn("put_i",put_i,(Type){TB_VOID,NULL,-1});
-	addFnParam(fn,"i",(Type){TB_INT,NULL,-1});
-	}
+void vmInit() {
+	Symbol *puti = addExtFn("put_i", put_i, (Type){TB_VOID, NULL, -1});
+	addFnParam(puti, "i", (Type){TB_INT, NULL, -1});
+
+	Symbol *putd = addExtFn("put_d", put_d, (Type){TB_VOID, NULL, -1});
+	addFnParam(putd, "i", (Type){TB_DOUBLE, NULL, -1});
+}
 
 void showInstructionList(Instruction *list) {
 	Instruction *traverser = list;
@@ -257,26 +260,26 @@ Instruction *genTestProgramDouble() {
 	addInstruction(&code, OP_HALT);
 	callPos->arg.instruction = addInstructionWithInt(&code, OP_ENTER, 1);
 	// int i=0;
-	addInstructionWithInt(&code,OP_PUSH_I,0);
-	addInstructionWithInt(&code,OP_FPSTORE,1);
+	addInstructionWithDouble(&code, OP_PUSH_F, 0.0);
+	addInstructionWithDouble(&code, OP_FPSTORE, 1);
 	// while(i<n){
-	Instruction *whilePos=addInstructionWithInt(&code,OP_FPLOAD,1);
-	addInstructionWithInt(&code,OP_FPLOAD,-2);
-	addInstruction(&code,OP_LESS_I);
-	Instruction *jfAfter=addInstruction(&code,OP_JF);
+	Instruction *whilePos = addInstructionWithInt(&code, OP_FPLOAD, 1); // fetch i
+	addInstructionWithDouble(&code, OP_FPLOAD, -2); // fetch parameter n
+	addInstruction(&code, OP_LESS_F);
+	Instruction *jfAfter=addInstruction(&code, OP_JF);
 	// put_i(i);
-	addInstructionWithInt(&code,OP_FPLOAD,1);
-	Symbol *s=findSymbol("put_i");
-	if(!s)printErrorAndExit("undefined: put_i");
-	addInstruction(&code,OP_CALL_EXT)->arg.externFunctionPointer=s->function.externFunctionPointer;
+	addInstructionWithDouble(&code, OP_FPLOAD, 1); // fetch i
+	Symbol *s = findSymbol("put_d");
+	if(!s) printErrorAndExit("undefined: put_d");
+	addInstruction(&code, OP_CALL_EXT)->arg.externFunctionPointer=s->function.externFunctionPointer;
 	// i=i+1;
-	addInstructionWithInt(&code,OP_FPLOAD,1);
-	addInstructionWithInt(&code,OP_PUSH_I,1);
-	addInstruction(&code,OP_ADD_I);
-	addInstructionWithInt(&code,OP_FPSTORE,1);
+	addInstructionWithDouble(&code, OP_FPLOAD, 1); // load i
+	addInstructionWithDouble(&code, OP_PUSH_F, 1);
+	addInstruction(&code, OP_ADD_F);
+	addInstructionWithDouble(&code, OP_FPSTORE, 1);
 	// } ( the next iteration)
-	addInstruction(&code,OP_JMP)->arg.instruction=whilePos;
+	addInstruction(&code, OP_JMP)->arg.instruction=whilePos;
 	// returns from function
-	jfAfter->arg.instruction=addInstructionWithInt(&code,OP_RET_VOID,1);
+	jfAfter->arg.instruction=addInstructionWithInt(&code, OP_RET_VOID, 1);
 	return code;
 }
