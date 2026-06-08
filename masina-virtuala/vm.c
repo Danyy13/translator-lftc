@@ -186,7 +186,7 @@ void run(Instruction *IP){
 			case OP_LESS_F:
 				fTop = popf();
 				fBefore = popf();
-				pushf(fBefore < fTop);
+				pushi(fBefore < fTop);
 				printf("LESS.f\t// %.2lf<%.2lf -> %d", fBefore, fTop, fBefore < fTop);
 				IP=IP->next;
 				break;
@@ -259,24 +259,24 @@ Instruction *genTestProgramDouble() {
 	Instruction *callPos = addInstruction(&code, OP_CALL);
 	addInstruction(&code, OP_HALT);
 	callPos->arg.instruction = addInstructionWithInt(&code, OP_ENTER, 1);
-	// int i=0;
+	// int i=0.0;
 	addInstructionWithDouble(&code, OP_PUSH_F, 0.0);
-	addInstructionWithDouble(&code, OP_FPSTORE, 1);
+	addInstructionWithInt(&code, OP_FPSTORE, 1);
 	// while(i<n){
 	Instruction *whilePos = addInstructionWithInt(&code, OP_FPLOAD, 1); // fetch i
-	addInstructionWithDouble(&code, OP_FPLOAD, -2); // fetch parameter n
+	addInstructionWithInt(&code, OP_FPLOAD, -2); // fetch parameter n
 	addInstruction(&code, OP_LESS_F);
 	Instruction *jfAfter=addInstruction(&code, OP_JF);
 	// put_i(i);
-	addInstructionWithDouble(&code, OP_FPLOAD, 1); // fetch i
+	addInstructionWithInt(&code, OP_FPLOAD, 1); // fetch i
 	Symbol *s = findSymbol("put_d");
 	if(!s) printErrorAndExit("undefined: put_d");
 	addInstruction(&code, OP_CALL_EXT)->arg.externFunctionPointer=s->function.externFunctionPointer;
-	// i=i+1;
-	addInstructionWithDouble(&code, OP_FPLOAD, 1); // load i
-	addInstructionWithDouble(&code, OP_PUSH_F, 1);
+	// i=i+0.5;
+	addInstructionWithInt(&code, OP_FPLOAD, 1); // load i
+	addInstructionWithDouble(&code, OP_PUSH_F, 0.5);
 	addInstruction(&code, OP_ADD_F);
-	addInstructionWithDouble(&code, OP_FPSTORE, 1);
+	addInstructionWithInt(&code, OP_FPSTORE, 1);
 	// } ( the next iteration)
 	addInstruction(&code, OP_JMP)->arg.instruction=whilePos;
 	// returns from function
