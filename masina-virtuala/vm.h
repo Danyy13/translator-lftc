@@ -30,9 +30,29 @@ typedef enum {
 	,OP_FPSTORE		// [idx] puts in FP[idx] the value from stack
 	,OP_ADD_I			// adds 2 int values from stack and puts the result on stack
 	,OP_LESS_I			// compares 2 int values from stack and puts the result on stack as int
+	
+	// added instructions for double function for vm
 	,OP_PUSH_F			// [ct.f] puts on stack the constant ct.f (float or double constant)
 	,OP_LESS_F			// compares 2 float values from stack and puts the result on stack as float
 	,OP_ADD_F			// adds 2 float values from stack and puts the result on stack
+
+	// added instructions for code generation
+	,OP_CONV_F_I	// converts the stack value from double to int
+	,OP_LOAD_I		// take an adress from stack and puts back the int value from that address
+	,OP_LOAD_F		// take an adress from stack and puts back the double value from that address
+	,OP_STORE_I		// takes from the stack an address and an int value and puts the value at the specified address. Leaves the value on stack.
+	,OP_STORE_F		// takes from the stack an address and a double value and puts the value at the specified address. Leaves the value on stack.
+	,OP_ADDR			// [p] pushes on stack the given pointer
+	,OP_FPADDR_I		// [idx] pushes on stack the address of FP[idx].i
+	,OP_FPADDR_F		// [idx] pushes on stack the address of FP[idx].f
+	,OP_SUB_I				// subtracts 2 int values from the top of the stack and puts the result on stack
+	,OP_SUB_F				// subtracts 2 double values from the top of the stack and puts the result on stack
+	,OP_MUL_I				// multiplies 2 int values from the top of the stack and puts the result on stack
+	,OP_MUL_F				// multiplies 2 double values from the top of the stack and puts the result on stack
+	,OP_DIV_I				// divides 2 int values from the top of the stack and puts the result on stack
+	,OP_DIV_F				// divides 2 double values from the top of the stack and puts the result on stack
+	,OP_DROP				// deletes the top stack value
+	,OP_NOP			// no operation
 }Opcode;
 
 typedef struct instruction Instruction;
@@ -56,6 +76,16 @@ struct instruction{
 // adds a new instruction to the end of list and sets its "op" field
 // returns the newly added instruction
 Instruction *addInstruction(Instruction **list, Opcode op);
+
+// inserts a new instruction after the specified instruction and sets its "op" field
+// returns the newly added instruction
+Instruction *insertInstruction(Instruction *before, int op);
+
+// deletes all the instructions after the given one
+void deleteInstructionAfter(Instruction *instr);
+
+// returns the last instruction from list
+Instruction *lastInstruction(Instruction *list);
 
 // add an instruction which has an argument of type int
 Instruction *addInstructionWithInt(Instruction **list,Opcode op,int argVal);

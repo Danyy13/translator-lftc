@@ -8,6 +8,7 @@
 #include "../analizor-domeniu/domain.h"
 #include "../analizor-lexical/utils.h"
 #include "../analizor-tipuri/type.h"
+#include "../generare-cod/gc.h"
 
 // #define DEBUG
 
@@ -194,6 +195,7 @@ bool structDef() {
 #endif
 
     Token *start = iteratorToken;
+    Instruction *startInstruction = owner ? lastInstruction(owner->function.instruction) : NULL;
 
     if(consume(STRUCT)) {
         if(consume(ID)) {
@@ -229,7 +231,9 @@ bool structDef() {
         // printTokenErrorAndExit("Missing or invalid struct name");
     }
 
-    iteratorToken = start;
+    iteratorToken = start; 
+    if(owner) deleteInstructionAfter(startInstruction);
+
     return false;
 }
 
@@ -275,13 +279,24 @@ bool stm() {
                 if(!canBeScalar(&condition)) printTokenErrorAndExit("The if condition must be a scalar value"); // tipuri
 
                 if(consume(RPAR)) {
+                    addRVal(&owner->function.instruction, condition.isleftValue, &condition.type);
+                    Type intType = {TB_INT, NULL, -1};
+                    insertConvIfNeeded(lastInstruction(owner->function.instruction), &condition.type, &intType);
+                    Instruction *ifJF = addInstruction(&owner->function.instruction, OP_JF);
+
                     if(stm()) {
                         if(consume(ELSE)) { // optional
+                            Instruction *ifJMP = addInstruction(&owner->function.instruction, OP_JMP);
+                            ifJF->arg.instruction = addInstruction(&owner->function.instruction, OP_NOP);
+
                             if(stm()) {
+                                ifJMP->arg.instruction = addInstruction(&owner->function.instruction, OP_NOP);
                                 return true;
                             }
                             printTokenErrorAndExit("Invalid or missing expression after else keyword");
                         }
+                        // if stm consumed, but no else, then do NOP because you don't jump to else block
+                        ifJF->arg.instruction = addInstruction(&owner->function.instruction, OP_NOP);
 
                         return true;
                     }
@@ -293,12 +308,22 @@ bool stm() {
     }
 
     if(consume(WHILE)) {
+        Instruction *beforeWhileCondition = lastInstruction(owner->function.instruction);
+
         if(consume(LPAR)) {
             if(expr(&condition)) {
                 if(!canBeScalar(&condition)) printTokenErrorAndExit("The while condition must be a scalar value"); // tipuri
 
                 if(consume(RPAR)) {
+                    addRVal(&owner->function.instruction, condition.isleftValue, &condition.type);
+                    Type intType = {TB_INT, NULL, -1};
+                    insertConvIfNeeded(lastInstruction(owner->function.instruction), &condition.type, &intType);
+                    Instruction *whileJF = addInstruction(&owner->function.instruction, OP_JF);
+
                     if(stm()) {
+                        addInstruction(&owner->function.instruction, OP_JMP)->arg.instruction = beforeWhileCondition->next;
+                        whileJF->arg.instruction = addInstruction(&owner->function.instruction, OP_NOP);
+
                         return true;
                     }
                     printTokenErrorAndExit("Invalid or missing expression after while declaration");
@@ -314,8 +339,14 @@ bool stm() {
             if(owner->type.typeBase == TB_VOID) printTokenErrorAndExit("A void function cannot return a value");
             if(!canBeScalar(&expression)) printTokenErrorAndExit("The return value must be a scalar value");
             if(!convertsTo(&expression.type, &owner->type)) printTokenErrorAndExit("Cannot convert the return expression type to the function return type");
+
+            addRVal(&owner->function.instruction, expression.isleftValue, &expression.type);
+            insertConvIfNeeded(lastInstruction(owner->function.instruction), &expression.type, &owner->type);
+            addInstructionWithInt(&owner->function.instruction, OP_RET, symbolsLen(owner->function.params));
         } else {
             if(owner->type.typeBase != TB_VOID) printTokenErrorAndExit("A non-void function must return a value");
+
+            addInstruction(&owner->function.instruction, OP_RET_VOID);
         }
         
         if(consume(SEMICOLON)) {
@@ -324,7 +355,10 @@ bool stm() {
         printTokenErrorAndExit("Missing ';' after return expression");
     }
 
-    if(expr(&expression)) {}
+    if(expr(&expression)) {
+        if(expression.type.typeBase != TB_VOID) addInstruction(&owner->function.instruction, OP_DROP);
+    }
+    
     if(consume(SEMICOLON)) {
         return true;
     }
@@ -380,6 +414,7 @@ bool fnDef() {
 #endif
 
     Token *start = iteratorToken;
+    Instruction *startInstruction = owner ? lastInstruction(owner->function.instruction) : NULL;
     Type type;
     type.arraySize = -1;
 
@@ -411,7 +446,14 @@ bool fnDef() {
                 }
 
                 if(consume(RPAR)) {
+                    addInstruction(&function->function.instruction, OP_ENTER);
+
                     if(stmCompound(false)) {
+                        function->function.instruction->arg.i = symbolsLen(function->function.locals);
+                        if(function->type.typeBase == TB_VOID) {
+                            addInstructionWithInt(&function->function.instruction, OP_RET_VOID, symbolsLen(function->function.params));
+                        }
+
                         dropDomain();
                         owner = NULL;
                         
@@ -427,6 +469,8 @@ bool fnDef() {
     }
 
     iteratorToken = start;
+    if(owner) deleteInstructionAfter(startInstruction);
+    
     return false;
 }
 
@@ -448,19 +492,38 @@ bool exprPrimary(Ret *ret) {
             if(expr(&retArgument)) {
                 if(!param) printTokenErrorAndExit("Too many arguments in function call");
                 if(!convertsTo(&retArgument.type, &param->type)) printTokenErrorAndExit("In function call, cannot convert to the argument type to the parameter type");
+
+                // code generation
+                addRVal(&owner->function.instruction, retArgument.isleftValue, &retArgument.type);
+                insertConvIfNeeded(lastInstruction(owner->function.instruction), &retArgument.type, &param->type);
+
                 param = param->next;
 
                 while(consume(COMMA)) {
                     if(!expr(&retArgument)) printTokenErrorAndExit("Expected expression after ',' in function call");
+
                     //expr consumed
                     if(!param) printTokenErrorAndExit("Too many arguments in function call");
                     if(!convertsTo(&retArgument.type, &param->type)) printTokenErrorAndExit("In function call, cannot convert to the argument type to the parameter type");
+
+                    // code generation
+                    addRVal(&owner->function.instruction, retArgument.isleftValue, &retArgument.type);
+                    insertConvIfNeeded(lastInstruction(owner->function.instruction), &retArgument.type, &param->type);
+
                     param = param->next;
                 }
             }
 
             if(consume(RPAR)) {
                 if(param) printErrorAndExit("Too few arguments in function call");
+
+                // code generation
+                if(symbol->function.externFunctionPointer){
+                    addInstruction(&owner->function.instruction, OP_CALL_EXT)->arg.externFunctionPointer = symbol->function.externFunctionPointer;
+                } else {
+                    addInstruction(&owner->function.instruction, OP_CALL)->arg.instruction = symbol->function.instruction;
+                }
+
                 *ret = (Ret){symbol->type, false, true};
 
                 return true;
@@ -469,34 +532,72 @@ bool exprPrimary(Ret *ret) {
         }
 
         if(symbol->symbolKind == SK_FN) printTokenErrorAndExit("A function can only be called");
+
+        if (symbol->symbolKind == SK_VAR) {
+            if (symbol->owner == NULL) { // global variables
+                addInstruction(&owner->function.instruction, OP_ADDR)->arg.p = symbol->varMem;
+            } else { // local variables
+                switch (symbol->type.typeBase) {
+                    case TB_INT:
+                        addInstructionWithInt(&owner->function.instruction, OP_FPADDR_I, symbol->varIndex + 1);
+                        break;
+                    case TB_DOUBLE:
+                        addInstructionWithInt(&owner->function.instruction, OP_FPADDR_F, symbol->varIndex + 1);
+                        break;
+                    default: break;
+                }
+            }
+        }
+
+        if (symbol->symbolKind == SK_PARAM) {
+            switch (symbol->type.typeBase) {
+                case TB_INT:
+                    addInstructionWithInt(&owner->function.instruction, OP_FPADDR_I, symbol->paramIndex - symbolsLen(symbol->owner->function.params) - 1);
+                    break;
+                case TB_DOUBLE:
+                    addInstructionWithInt(&owner->function.instruction, OP_FPADDR_F, symbol->paramIndex - symbolsLen(symbol->owner->function.params) - 1);
+                    break;
+                default: break;
+            }
+        }
+
         *ret = (Ret){symbol->type, true, symbol->type.arraySize >= 0};
 
         return true;
     }
 
-    if(consume(INT)) {
+    if (consume(INT))
+    {
+        addInstructionWithInt(&owner->function.instruction, OP_PUSH_I, consumedToken->value.intValue);
         *ret = (Ret){{TB_INT, NULL, -1}, false, true};
         return true;
     }
 
-    if(consume(DOUBLE)) {
+    if (consume(DOUBLE))
+    {
+        addInstructionWithDouble(&owner->function.instruction, OP_PUSH_F, consumedToken->value.doubleValue);
         *ret = (Ret){{TB_DOUBLE, NULL, -1}, false, true};
         return true;
     }
 
-    if(consume(CHAR)) {
+    if (consume(CHAR))
+    {
         *ret = (Ret){{TB_CHAR, NULL, -1}, false, true};
         return true;
     }
 
-    if(consume(STRING)) {
+    if (consume(STRING))
+    {
         *ret = (Ret){{TB_CHAR, NULL, -1}, false, true};
         return true;
     }
 
-    if(consume(LPAR)) {
-        if(expr(ret)) {
-            if(consume(RPAR)) {
+    if (consume(LPAR))
+    {
+        if (expr(ret))
+        {
+            if (consume(RPAR))
+            {
                 return true;
             }
             printTokenErrorAndExit("Missing ')'");
@@ -653,9 +754,37 @@ bool handleExprMulPrim(Ret *ret, AtomCode atomCode) {
 
     Ret right;
 
+    // code generation
+    Token *op = consumedToken; // MUL | DIV
+
+    Instruction *lastLeft = lastInstruction(owner->function.instruction);
+    addRVal(&owner->function.instruction, ret->isleftValue, &ret->type);
+
     if(exprCast(&right)) {
         Type destination;
         if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for %c", operand);
+
+        addRVal(&owner->function.instruction, right.isleftValue, &right.type);
+        insertConvIfNeeded(lastLeft, &ret->type, &destination);
+        insertConvIfNeeded(lastInstruction(owner->function.instruction), &right.type, &destination);
+        switch(op->code){
+            case MUL:
+                switch(destination.typeBase) {
+                    case TB_INT: addInstruction(&owner->function.instruction, OP_MUL_I); break;
+                    case TB_DOUBLE: addInstruction(&owner->function.instruction, OP_MUL_F); break;
+                    default: break;
+                    }
+                break;
+            case DIV:
+                switch(destination.typeBase){
+                    case TB_INT: addInstruction(&owner->function.instruction, OP_DIV_I); break;
+                    case TB_DOUBLE: addInstruction(&owner->function.instruction, OP_DIV_F); break;
+                    default: break;
+                    }
+                break;
+            default: break;
+        }
+
         *ret = (Ret){destination, false, true};
 
         if(exprMulPrim(ret)) {
@@ -688,6 +817,7 @@ bool exprMul(Ret *ret) {
     printf("# exprMul\n");
 #endif
 
+
     if(exprCast(ret)) {
         if(exprMulPrim(ret)) {
             return true;
@@ -713,9 +843,39 @@ bool handleExprAddPrim(Ret *ret, AtomCode atomCode) {
 
     Ret right;
 
+    // code generation
+    Token *op = consumedToken; // ADD | SUB
+
+    Instruction *lastLeft = lastInstruction(owner->function.instruction);
+    addRVal(&owner->function.instruction, ret->isleftValue, &ret->type);
+
     if(exprMul(&right)) {
         Type destination;
         if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for %c", operand);
+
+        // code generation
+        addRVal(&owner->function.instruction, right.isleftValue, &right.type);
+        insertConvIfNeeded(lastLeft, &ret->type, &destination);
+        insertConvIfNeeded(lastInstruction(owner->function.instruction), &right.type, &destination);
+        switch(op->code){
+            case ADD:
+                switch(destination.typeBase) {
+                    case TB_INT: addInstruction(&owner->function.instruction, OP_ADD_I); break;
+                    case TB_DOUBLE: addInstruction(&owner->function.instruction, OP_ADD_F); break;
+                    default: break;
+                }
+                break;
+            case SUB:
+                switch(destination.typeBase) {
+                    case TB_INT: addInstruction(&owner->function.instruction, OP_SUB_I); break;
+                    case TB_DOUBLE: addInstruction(&owner->function.instruction, OP_SUB_F); break;
+                    default: break;
+                }
+            break;
+
+            default: break;
+        }
+
         *ret = (Ret){destination, false, true};
 
         if(exprAddPrim(ret)) {
@@ -779,9 +939,30 @@ bool handleRelPrim(Ret *ret, AtomCode atomCode) {
 
     Ret right;
 
+    // code generation
+    Token *op = consumedToken; // LESS | LESSEQ | GREATER | GREATEREQ
+
+    Instruction *lastLeft = lastInstruction(owner->function.instruction);
+    addRVal(&owner->function.instruction, ret->isleftValue, &ret->type);
+
     if(exprAdd(&right)) {
         Type destination;
         if(!resultsArithmeticalType(&ret->type, &right.type, &destination)) printTokenErrorAndExit("Invalid operand type for %s", operand);
+        
+        addRVal(&owner->function.instruction, right.isleftValue, &right.type);
+        insertConvIfNeeded(lastLeft, &ret->type, &destination);
+        insertConvIfNeeded(lastInstruction(owner->function.instruction), &right.type, &destination);
+        switch(op->code) {
+            case LESS:
+                switch(destination.typeBase) {
+                    case TB_INT: addInstruction(&owner->function.instruction, OP_LESS_I); break;
+                    case TB_DOUBLE: addInstruction(&owner->function.instruction, OP_LESS_F); break;
+                    default: break;
+                }
+                break;
+            default: break;
+        }
+        
         *ret = (Ret){{TB_INT, NULL, -1}, false, true};
 
         if(exprRelPrim(ret)) {
@@ -964,6 +1145,7 @@ bool exprAssign(Ret *ret) {
 #endif
 
     Token *start = iteratorToken;
+    Instruction *startInstruction = owner ? lastInstruction(owner->function.instruction) : NULL;
     Ret destination;
 
     if(exprUnary(&destination)) {
@@ -977,6 +1159,14 @@ bool exprAssign(Ret *ret) {
                 ret->isleftValue = false;
                 ret->isConstant = true;
 
+                addRVal(&owner->function.instruction, ret->isleftValue, &ret->type);
+                insertConvIfNeeded(lastInstruction(owner->function.instruction), &ret->type, &destination.type);
+                switch(destination.type.typeBase) {
+                    case TB_INT: addInstruction(&owner->function.instruction, OP_STORE_I); break;
+                    case TB_DOUBLE:addInstruction(&owner->function.instruction, OP_STORE_F); break;
+                    default: break;
+                }
+
                 return true;
             }
             printTokenErrorAndExit("Invalid or missing expression after '='");
@@ -984,12 +1174,15 @@ bool exprAssign(Ret *ret) {
     }
 
     iteratorToken = start;
+    if(owner) deleteInstructionAfter(startInstruction);
 
     if(exprOr(ret)) {
         return true;
     }
 
     iteratorToken = start;
+    if(owner) deleteInstructionAfter(startInstruction);
+
     return false;
 }
 

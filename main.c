@@ -25,6 +25,27 @@ void analizorSintactic(Token *tokenList) {
     parse(tokenList);
 }
 
+void masinaVirtuala() {
+    // Instruction *testCode = genTestProgram();
+    // run(testCode);
+
+    Instruction *testCodeDouble = genTestProgramDouble();
+    if(testCodeDouble == NULL) {
+        printErrorAndExit("Error with generation of the lab test program code (with double)");
+    }
+    run(testCodeDouble);
+}
+
+void generareCod() {
+    Symbol *symbolMain = findSymbolInDomain(symbolTable, "main");
+    if(!symbolMain) printErrorAndExit("Missing main function");
+
+    Instruction *entryCode = NULL;
+    addInstruction(&entryCode, OP_CALL)->arg.instruction = symbolMain->function.instruction;
+    addInstruction(&entryCode, OP_HALT);
+    run(entryCode);
+}
+
 int main(int argc, char *argv[]) {
     if(argc != 2) {
         fprintf(stderr, "Invalid number of arguments. Usage: ./app.exe {inputFilePath}");
@@ -39,14 +60,10 @@ int main(int argc, char *argv[]) {
     vmInit();
     analizorSintactic(tokenList);
 
-    // Instruction *testCode = genTestProgram();
-    // run(testCode);
+    // masinaVirtuala();
+    generareCod();
 
-    Instruction *testCodeDouble = genTestProgramDouble();
-    if(testCodeDouble == NULL) {
-        printErrorAndExit("Error with generation of the lab test program code (with double)");
-    }
-    run(testCodeDouble);
+    // printf("OK dupa\n");
 
     // showDomain(symbolTable, "global"); // domain    
     dropDomain(); // domain

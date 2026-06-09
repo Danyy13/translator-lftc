@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "../analizor-lexical/utils.h"
 #include "../analizor-domeniu/domain.h"
@@ -22,6 +23,34 @@ Instruction *addInstruction(Instruction **list,Opcode op){
 	return instruction;
 	}
 
+Instruction *insertInstruction(Instruction *before, int op) {
+	Instruction *instruction = (Instruction*)safeMalloc(sizeof(Instruction));
+	instruction->op = op;
+	instruction->next = before->next;
+	before->next = instruction;
+
+	return instruction;
+}
+
+void deleteInstructionAfter(Instruction *instruction) {
+	if(!instruction) return;
+	
+	for(Instruction *next = instruction->next,*i=next ; i ; i=next){
+		next = i->next;
+		free(i);
+	}
+	
+	instruction->next = NULL;
+}
+
+Instruction *lastInstruction(Instruction *list) {
+	if(list){
+		while(list->next) list = list->next;
+	}
+	
+	return list;
+}
+
 Instruction *addInstructionWithInt(Instruction **list,Opcode op,int argVal){
 	Instruction *i=addInstruction(list,op);
 	i->arg.i=argVal;
@@ -34,7 +63,8 @@ Instruction *addInstructionWithDouble(Instruction **list, Opcode op, double argV
 	return i;
 	}
 
-Val stack[10000];		// the stack
+#define MAX_STACK 10000
+Val stack[MAX_STACK];		// the stack
 Val *SP=stack-1;		// Stack pointer - the stack's top - points to the value from the top of the stack
 Val *FP=NULL;		// the initial value doesn't matter
 
@@ -92,6 +122,7 @@ void run(Instruction *IP){
 	Val v;
 	int iArg, iTop, iBefore;
 	double fTop, fBefore;
+	void *pTop;
 	void(*extFnPtr)();
 
 	// showInstructionList(IP);
@@ -145,13 +176,13 @@ void run(Instruction *IP){
 			case OP_FPLOAD:
 				v=FP[IP->arg.i];
 				pushv(v);
-				printf("FPLOAD\t%d\t// i:%d, f:%g",IP->arg.i,v.i,v.f);
+				printf("FPLOAD\t%d\t// i:%d, f:%.2lf",IP->arg.i,v.i,v.f);
 				IP=IP->next;
 				break;
 			case OP_FPSTORE:
 				v=popv();
 				FP[IP->arg.i]=v;
-				printf("FPSTORE\t%d\t// i:%d, f:%g",IP->arg.i,v.i,v.f);
+				printf("FPSTORE\t%d\t// i:%d, f:%.2lf",IP->arg.i,v.i,v.f);
 				IP=IP->next;
 				break;
 			case OP_ADD_I:
@@ -169,8 +200,7 @@ void run(Instruction *IP){
 				IP=IP->next;
 				break;
 			
-			// user code - double
-
+			// added instructions for double function for vm
 			case OP_PUSH_F:
 				printf("PUSH.f\t%.2lf", IP->arg.f);
 				pushf(IP->arg.f);
@@ -188,6 +218,66 @@ void run(Instruction *IP){
 				fBefore = popf();
 				pushi(fBefore < fTop);
 				printf("LESS.f\t// %.2lf<%.2lf -> %d", fBefore, fTop, fBefore < fTop);
+				IP=IP->next;
+				break;
+
+			// added for code generation
+			case OP_CONV_F_I:
+				fTop=popf();
+				pushi((int)fTop);
+				printf("CONV.f.i\t// %g -> %d",fTop,(int)fTop);
+				IP=IP->next;
+				break;
+			case OP_DROP:
+				popv();
+				printf("DROP");
+				IP=IP->next;
+				break;
+			case OP_FPADDR_I:
+				pTop=&FP[IP->arg.i].i;
+				pushp(pTop);
+				printf("FPADDR\t%d\t// %p",IP->arg.i,pTop);
+				IP=IP->next;
+				break;
+			case OP_LOAD_I:
+				pTop=popp();
+				pushi(*(int*)pTop);
+				printf("LOAD.i\t// *(int*)%p -> %d",pTop,*(int*)pTop);
+				IP=IP->next;
+				break;
+			case OP_NOP:
+				printf("NOP");
+				IP=IP->next;
+				break;
+			case OP_RET:
+				v=popv();
+				iArg=IP->arg.i;
+				printf("RET\t%d\t// i:%d, f:%g",iArg,v.i,v.f);
+				IP=FP[-1].p;
+				SP=FP-iArg-2;
+				FP=FP[0].p;
+				pushv(v);
+				break;
+			case OP_SUB_I:
+				iTop=popi();
+				iBefore=popi();
+				pushi(iBefore-iTop);
+				printf("SUB.i\t// %d-%d -> %d",iBefore,iTop,iBefore-iTop);
+				IP=IP->next;
+				break;
+			case OP_MUL_I:
+				iTop=popi();
+				iBefore=popi();
+				pushi(iBefore*iTop);
+				printf("MUL.i\t// %d*%d -> %d",iBefore,iTop,iBefore*iTop);
+				IP=IP->next;
+				break;
+			case OP_STORE_I:
+				iTop=popi();
+				v=popv();
+				*(int*)v.p=iTop;
+				pushi(iTop);
+				printf("STORE.i\t// *(int*)%p=%d",v.p,iTop);
 				IP=IP->next;
 				break;
 
@@ -239,6 +329,7 @@ Instruction *genTestProgram(){
 	return code;
 }
 
+// added instructions for double function for vm
 void put_d() {
 	printf("=> %.2lf", popf());
 }
